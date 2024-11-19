@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">Reviews</h2>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="page-body">
+    <div class="container-xl">
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-vcenter card-table" id="reviews-table">
+                        <thead>
+                            <tr>
+                                <th>Hotel Unit</th>
+                                <th>Guest Name</th>
+                                <th>Rating</th>
+                                <th>Date</th>
+                                <th>Review</th>
+                                <th>Sentiment</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for review in reviews %}
+                            <tr>
+                                <td>{{ review[1] }}</td>
+                                <td>{{ review[2] }}</td>
+                                <td>{{ review[3] }}</td>
+                                <td>{{ review[4] }}</td>
+                                <td>{{ review[5] }}</td>
+                                <td>
+                                    <select class="form-select sentiment-select" data-review-id="{{ review[0] }}">
+                                        <option value="">Select sentiment</option>
+                                        <option value="positive" {% if review[6] == 'positive' %}selected{% endif %}>Positive</option>
+                                        <option value="negative" {% if review[6] == 'negative' %}selected{% endif %}>Negative</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <button class="btn btn-primary btn-sm save-sentiment" data-review-id="{{ review[0] }}">
+                                        Save
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.save-sentiment').forEach(button => {
+    button.addEventListener('click', async function() {
+        const reviewId = this.dataset.reviewId;
+        const sentiment = document.querySelector(`select[data-review-id="${reviewId}"]`).value;
+        
+        try {
+            const response = await fetch('/update_sentiment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    review_id: reviewId,
+                    sentiment: sentiment
+                })
+            });
+            
+            if (response.ok) {
+                alert('Sentiment updated successfully');
+                location.reload();
+            } else {
+                alert('Error updating sentiment');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error updating sentiment');
+        }
+    });
+});
+</script>
+{% endblock %}
