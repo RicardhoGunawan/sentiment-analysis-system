@@ -66,11 +66,34 @@ class Review:
         return reviews
 
     @staticmethod
-    def add_review(hotel_unit, guest_name, rating, review_date, review_text, sentiment_label):
+    def get_review_by_content(content):
+        """Check if a review with the same content already exists."""
         cur = mysql.connection.cursor()
-        cur.execute('''
-            INSERT INTO reviews (hotel_unit, guest_name, rating, review_date, review_text, sentiment_label)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        ''', (hotel_unit, guest_name, rating, review_date, review_text, sentiment_label))
-        mysql.connection.commit()
+        cur.execute('SELECT * FROM reviews WHERE review_text = %s', (content,))
+        result = cur.fetchone()
         cur.close()
+        return result
+
+    @staticmethod
+    def add_review(hotel_unit, guest_name, rating, review_date, review_text, sentiment_label):
+        """Add a review to the database, making sure it doesn't already exist."""
+        # Check for existing review
+        existing_review = Review.get_review_by_content(review_text)
+        if existing_review:
+            print(f"Review already exists: {review_text}")
+            return False  # Return false if the review already exists
+
+        cur = mysql.connection.cursor()
+        try:
+            cur.execute('''
+                INSERT INTO reviews (hotel_unit, guest_name, rating, review_date, review_text, sentiment_label)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            ''', (hotel_unit, guest_name, rating, review_date, review_text, sentiment_label))
+            mysql.connection.commit()
+            return True  # Review added successfully
+        except Exception as e:
+            print(f"Terjadi kesalahan saat menambahkan review: {e}")
+            mysql.connection.rollback()  # Rollback on error
+            return False  # Review failed to add
+        finally:
+            cur.close()

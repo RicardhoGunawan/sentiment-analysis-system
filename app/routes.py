@@ -95,19 +95,19 @@ def init_routes(app):
 
                 # Simpan review ke database
                 for _, row in df.iterrows():
-                    review = row['review'] if pd.notna(row['review']) else None
-                    if review:
-                        cleaned_review = sentiment_analyzer.preprocess_text(review)  # Bersihkan ulasan
-                        sentiment = sentiment_analyzer.predict([cleaned_review])[0]  # Dapatkan prediksi sentimen
-                        
-                        Review.add_review(
-                            row['hotel_unit'] if pd.notna(row['hotel_unit']) else None,
-                            row['name'] if pd.notna(row['name']) else None,
-                            row['rating'] if pd.notna(row['rating']) else None,
-                            row['date'] if pd.notna(row['date']) else None,
-                            cleaned_review,  # Gunakan teks ulasan yang telah dibersihkan
-                            sentiment  # Gunakan prediksi sentimen
-                        )
+                    # Ambil kolom review, jika kosong maka tetapkan sebagai string kosong
+                    review = row['review'] if pd.notna(row['review']) else ""  # Tetapkan ke string kosong jika tidak ada review
+                    cleaned_review = sentiment_analyzer.preprocess_text(review)  # Bersihkan ulasan
+                    sentiment = sentiment_analyzer.predict([cleaned_review])[0]  # Dapatkan prediksi sentimen
+
+                    Review.add_review(
+                        row['hotel_unit'] if pd.notna(row['hotel_unit']) else None,
+                        row['name'] if pd.notna(row['name']) else None,
+                        row['rating'] if pd.notna(row['rating']) else None,
+                        row['date'] if pd.notna(row['date']) else None,
+                        cleaned_review,  # Gunakan teks ulasan yang telah dibersihkan
+                        sentiment  # Gunakan prediksi sentimen
+                    )
 
                 os.remove(filepath)  # Bersihkan file yang di-upload
                 flash('File uploaded and processed successfully')
