@@ -36,7 +36,7 @@
                 </div>
             </div>
         </header>
-        
+
         {% if current_user.is_authenticated %}
         <div class="navbar-expand-md">
             <div class="collapse navbar-collapse" id="navbar-menu">
@@ -59,14 +59,33 @@
                                     <span class="nav-link-title">Reviews</span>
                                 </a>
                             </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('upload') }}">
-                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                        <i class="ti ti-upload"></i>
-                                    </span>
-                                    <span class="nav-link-title">Upload Data</span>
-                                </a>
-                            </li>
+                            {% if current_user.role == 'admin' %}
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{{ url_for('manage_hotels') }}">
+                                        <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                            <i class="ti ti-building"></i>
+                                        </span>
+                                        <span class="nav-link-title">Manage Hotels</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{{ url_for('manage_hotel_accounts') }}">
+                                        <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                            <i class="ti ti-users"></i>
+                                        </span>
+                                        <span class="nav-link-title">Manage Hotel Accounts</span>
+                                    </a>
+                                </li>
+                            {% elif current_user.role == 'unit_hotel' %}
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{{ url_for('upload') }}">
+                                        <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                            <i class="ti ti-upload"></i>
+                                        </span>
+                                        <span class="nav-link-title">Upload Data</span>
+                                    </a>
+                                </li>
+                            {% endif %}
                         </ul>
                     </div>
                 </div>

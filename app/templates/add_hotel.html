@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Tambah Hotel</h2>
+    <form method="POST">
+        <div class="form-group">
+            <label for="name">Nama Hotel:</label>
+            <input type="text" class="form-control" name="name" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Tambah Hotel</button>
+    </form>
+    <a href="{{ url_for('manage_hotels') }}" class="btn btn-secondary">Kembali</a>
+</div>
+{% endblock %}
