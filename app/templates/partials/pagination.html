@@ -1,0 +1,35 @@
+<ul class="pagination">
+    <li class="page-item {% if current_page == 1 %}disabled{% endif %}">
+        <a class="page-link" href="#" {% if current_page > 1 %}data-page="{{ current_page - 1 }}"{% endif %} aria-label="Previous">
+            <span aria-hidden="true">&laquo;</span>
+        </a>
+    </li>
+
+    {% set show_dots_start = false %}
+    {% set show_dots_end = false %}
+    {% set window_size = 2 %}
+
+    {% for num in range(1, total_pages + 1) %}
+        {% if num == 1 or num == total_pages or (num >= current_page - window_size and num <= current_page + window_size) %}
+            <li class="page-item {% if num == current_page %}active{% endif %}">
+                <a class="page-link" href="#" data-page="{{ num }}">{{ num }}</a>
+            </li>
+        {% elif num == current_page - window_size - 1 %}
+            <li class="page-item disabled">
+                <span class="page-link">...</span>
+            </li>
+            {% set show_dots_start = true %}
+        {% elif num == current_page + window_size + 1 %}
+            <li class="page-item disabled">
+                <span class="page-link">...</span>
+            </li>
+            {% set show_dots_end = true %}
+        {% endif %}
+    {% endfor %}
+
+    <li class="page-item {% if current_page == total_pages %}disabled{% endif %}">
+        <a class="page-link" href="#" {% if current_page < total_pages %}data-page="{{ current_page + 1 }}"{% endif %} aria-label="Next">
+            <span aria-hidden="true">&raquo;</span>
+        </a>
+    </li>
+</ul>

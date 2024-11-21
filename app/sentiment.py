@@ -33,37 +33,109 @@ class SentimentAnalyzer:
         self.positive_words = set([
             'bagus', 'baik', 'suka', 'senang', 'puas', 'mantap', 'keren', 'enak',
             'recommended', 'rekomen', 'memuaskan', 'ramah', 'cepat', 'bersih',
-            'nyaman', 'top', 'oke', 'ok', 'recommended', 'worth', 'mantul'
+            'nyaman', 'top', 'oke', 'ok', 'recommended', 'worth', 'mantul','memuaskan'
         ])
         
         self.negative_words = set([
             'buruk', 'jelek', 'kecewa', 'mahal', 'lambat', 'kotor', 'kasar',
             'tidak', 'jangan', 'hancur', 'rusak', 'busuk', 'mahal', 'kurang',
-            'cacad', 'rugi', 'bau', 'pahit', 'basi', 'lecet'
+            'cacad', 'rugi', 'bau', 'pahit', 'basi', 'lecet','tolong','kecoa',
+            'mempersulit','kurang','jorok','mati'
         ])
 
     def preprocess_text(self, text):
         """Preprocesses input text for sentiment analysis."""
         if isinstance(text, str):
-            # 1. URL removal
-            text = re.sub(r'http(s)?://\S+|www\.\S+', '', text)
-            # 2. Email removal
-            text = re.sub(r'\S+@\S+', '', text)
-            # 3. HTML Tags removal
-            text = BeautifulSoup(text, 'html.parser').get_text()
-            # 4. Punctuation removal
-            text = text.translate(str.maketrans('', '', string.punctuation))
-            # 5. Extra whitespaces removal
-            text = ' '.join(text.split())
-            # 6. Convert to lowercase
+            # 1. Case folding
             text = text.lower()
-            # 7. Tokenization and stemming
-            tokens = word_tokenize(text)
+
+            # 2. URL removal
+            text = re.sub(r'http(s)?://\S+|www\.\S+', '', text)
+
+            # 3. Email removal
+            text = re.sub(r'\S+@\S+', '', text)
+
+            # 4. Date removal
+            text = re.sub(r'\d{1,2}(st|nd|rd|th)?[-./]\d{1,2}[-./]\d{2,4}', '', text)
+            text = re.compile(r'(\d{1,2})?(st|nd|rd|th)?[-./,]?\s?(of)?\s?([J|j]an(uary)?|[F|f]eb(ruary)?|[Mm]ar(ch)?|[Aa]pr(il)?|[Mm]ay|[Jj]un(e)?|[Jj]ul(y)?|[Aa]ug(ust)?|[Ss]ep(tember)?|[Oo]ct(ober)?|[Nn]ov(ember)?|[Dd]ec(ember)?)\s?(\d{1,2})?(st|nd|rd|th)?\s?[-./,]?\s?(\d{2,4})?'
+                    ).sub('', text)
+
+            # 5. HTML tags removal
+            text = BeautifulSoup(text, 'html.parser').get_text()
+
+            # 6. Emojis removal
+            text = re.sub(r"["
+                        u"\U0001F600-\U0001F64F"  # emoticons
+                        u"\U0001F300-\U0001F5FF"  # symbols & pictographs
+                        u"\U0001F680-\U0001F6FF"  # transport & map symbols
+                        u"\U0001F1E0-\U0001F1FF"  # flags
+                        u"\U00002500-\U00002BEF"  # chinese char
+                        u"\U00002702-\U000027B0"
+                        u"\U00002702-\U000027B0"
+                        u"\U000024C2-\U0001F251"
+                        u"\U0001f926-\U0001f937"
+                        u"\U00010000-\U0010ffff"
+                        u"\u2640-\u2642"
+                        u"\u2600-\u2B55"
+                        u"\u200d"
+                        u"\u23cf"
+                        u"\u23e9"
+                        u"\u231a"
+                        u"\ufe0f"  # dingbats
+                        u"\u3030"
+                        "]+", '', text)
+
+            # 7. Remove emoticons based on the provided dictionary
+            EMOTICONS = {
+                u":‑$$": "Happy face or smiley",
+                u":$$": "Happy face or smiley",
+                u":-$$": "Happy face or smiley",
+                u":$$": "Happy face or smiley",
+                u":-3": "Happy face smiley",
+                u":3": "Happy face smiley",
+                u":->": "Happy face smiley",
+                u":>": "Happy face smiley",
+                u"8-$$": "Happy face smiley",
+                u":o$$": "Happy face smiley",
+                u":-\\}": "Happy face smiley",  # Memperbaiki escape
+                u":\\}": "Happy face smiley",   # Memperbaiki escape
+                u":-D": "Laughing, big grin or laugh with glasses",
+                u":D": "Laughing, big grin or laugh with glasses",
+                u"8‑D": "Laughing, big grin or laugh with glasses",
+                u"8D": "Laughing, big grin or laugh with glasses",
+                u"X‑D": "Laughing, big grin or laugh with glasses",
+                u"XD": "Laughing, big grin or laugh with glasses",
+                # Lanjutkan untuk emotikon lainnya, pastikan semua telah diperbaiki
+                u":-\\|": "Frown, sad, angry or pouting",
+                u">:\$$": "Frown, sad, angry or pouting",
+                u":\\{": "Frown, sad, angry or pouting",
+                u":@": "Frown, sad, angry or pouting",
+                            # Tambahkan emoticons lain yang sesuai
+            }
+            text = re.sub(u'(' + u'|'.join(emo for emo in EMOTICONS) + u')', '', text)
+
+            # 8. Hashtags and mentions removal
+            text = re.sub(r'(@\S+|#\S+)', '', text)
+
+            # 9. Punctuation removal
+            text = text.translate(str.maketrans('', '', string.punctuation))
+
+            # 10. Number removal
+            text = re.sub(r'\d+', '', text)
+
+            # 11. Extra whitespaces removal
+            text = ' '.join(text.split())
+
+            # 12. Tokenization and stemming (jika diperlukan)
+            tokens = word_tokenize(text)  # Pastikan Anda memiliki NLTK dengan tokenizer terinstal
             tokens = [self.stemmer.stem(token) for token in tokens if token not in self.stop_words]
+            
+            # Gabungkan kembali token menjadi string
             return ' '.join(tokens)
         else:
             print(f"Warning: Expected string input but got {type(text)}.")
             return ''
+
 
     def get_sentiment_label(self, text):
         """Get sentiment label from text using custom Indonesian sentiment dictionary."""

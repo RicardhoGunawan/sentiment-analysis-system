@@ -103,5 +103,31 @@ class Review:
                 logging.error(f"Error adding review: {e}")
                 mysql.connection.rollback()
                 return False
+            
+    @staticmethod
+    def get_paginated_reviews(page, per_page=10):
+        offset = (page - 1) * per_page
+        cursor = mysql.connection.cursor()
+        cursor.execute("SELECT * FROM reviews LIMIT %s OFFSET %s", (per_page, offset))
+        reviews = cursor.fetchall()
+        cursor.execute("SELECT COUNT(*) FROM reviews")
+        total_reviews = cursor.fetchone()[0]
+        cursor.close()
+        return reviews, total_reviews  
+
+    @staticmethod
+    def get_hotel_reviews_paginated(hotel_unit, page, per_page=10):
+        offset = (page - 1) * per_page
+        cursor = mysql.connection.cursor()
+        cursor.execute("SELECT * FROM reviews WHERE hotel_unit = %s LIMIT %s OFFSET %s", (hotel_unit, per_page, offset))
+        reviews = cursor.fetchall()
+        cursor.execute("SELECT COUNT(*) FROM reviews WHERE hotel_unit = %s", (hotel_unit,))
+        total_reviews = cursor.fetchone()[0]
+        cursor.close()
+        return reviews, total_reviews
+    
+    
+
+
 
 

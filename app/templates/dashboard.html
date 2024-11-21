@@ -2,59 +2,114 @@
 
 {% block content %}
 <div class="page-header d-print-none">
-    <div class="container-xl">
-        <div class="row g-2 align-items-center">
-            <div class="col">
-                <h2 class="page-title">Dashboard</h2>
-            </div>
-        </div>
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <h2 class="page-title">Dashboard</h2>
+      </div>
     </div>
+  </div>
 </div>
+
 <div class="page-body">
-    <div class="container-xl">
-        <div class="row row-deck row-cards">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Latest Reviews</h3>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table card-table table-vcenter">
-                            <thead>
-                                <tr>
-                                    <th>Hotel Unit</th>
-                                    <th>Guest Name</th>
-                                    <th>Rating</th>
-                                    <th>Date</th>
-                                    <th>Review</th>
-                                    <th>Sentiment</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for review in reviews %}
-                                <tr>
-                                    <td>{{ review[1] }}</td>
-                                    <td>{{ review[2] }}</td>
-                                    <td>{{ review[3] }}</td>
-                                    <td>{{ review[4] }}</td>
-                                    <td>{{ review[5] }}</td>
-                                    <td>
-                                        {% if review[6] %}
-                                            <span class="badge bg-{{ 'success' if review[6] == 'positive' else 'danger' }}">
-                                                {{ review[6] }}
-                                            </span>
-                                        {% else %}
-                                            <span class="badge bg-secondary">Unlabeled</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+  <div class="container-xl">
+    <div class="row row-deck row-cards">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Latest Reviews</h3>
+          </div>
+          <div class="table-responsive" id="table-container">
+            <table class="table card-table table-vcenter">
+              <thead>
+                <tr>
+                  <th>Guest Name</th>
+                  <th>Rating</th>
+                  <th>Date</th>
+                  <th>Review</th>
+                  <th>Sentiment</th>
+                </tr>
+              </thead>
+              <tbody id="review-body">
+                {% for review in reviews %}
+                <tr>
+                  <td>{{ review[2] }}</td>
+                  <td>{{ review[3] }}</td>
+                  <td>{{ review[4] }}</td>
+                  <td>{{ review[5] }}</td>
+                  <td>
+                    {% if review[6] %}
+                    <span class="badge bg-{{ 'success' if review[6] == 'positive' else 'danger' }}">
+                      {{ review[6] }}
+                    </span>
+                    {% else %}
+                    <span class="badge bg-secondary">Unlabeled</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination Controls -->
+          <div class="card-footer d-flex justify-content-between align-items-center">
+            <div>
+              Showing {{ reviews|length }} out of {{ total_reviews }} reviews
             </div>
+            <nav id="pagination-container">
+              <ul class="pagination">
+                {% include 'partials/pagination.html' %}
+              </ul>
+            </nav>
+          </div>
         </div>
+      </div>
     </div>
+  </div>
 </div>
+
+<!-- Include jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+  $(document).ready(function() {
+      $("#pagination-container").on("click", ".page-link", function(e) {
+          e.preventDefault();
+          var page = $(this).data("page");
+          
+          if (!page || $(this).parent().hasClass('disabled')) {
+              return;
+          }
+  
+          $.ajax({
+              url: '{{ url_for("dashboard") }}',
+              type: 'GET',
+              data: { page: page },
+              headers: {
+                  'X-Requested-With': 'XMLHttpRequest'
+              },
+              beforeSend: function() {
+                  // Tambahkan loading indicator jika diperlukan
+                  $("#review-body").addClass('opacity-50');
+              },
+              success: function(response) {
+                  $("#review-body").html(response.reviews_html);
+                  $("#pagination-container").html(response.pagination_html);
+                  $(".showing-info").html(response.showing_info);
+                  
+                  // Update URL tanpa reload
+                  const url = new URL(window.location);
+                  url.searchParams.set('page', page);
+                  window.history.pushState({}, '', url);
+              },
+              error: function() {
+                  alert("Error loading data. Please try again.");
+              },
+              complete: function() {
+                  $("#review-body").removeClass('opacity-50');
+              }
+          });
+      });
+  });
+  </script>
 {% endblock %}

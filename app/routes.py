@@ -62,12 +62,31 @@ def init_routes(app):
     @app.route('/')
     @login_required
     def dashboard():
+        page = request.args.get('page', default=1, type=int)
+        per_page = 10  # Jumlah item per halaman
+        
         if current_user.role == 'admin':
-            reviews = Review.get_all_reviews()
+            reviews, total_reviews = Review.get_paginated_reviews(page)
         else:
-            reviews = Review.get_hotel_reviews(current_user.hotel_unit)
-        return render_template('dashboard.html', reviews=reviews)
-    
+            reviews, total_reviews = Review.get_hotel_reviews_paginated(current_user.hotel_unit, page)
+
+        total_pages = (total_reviews + per_page - 1) // per_page
+
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({
+                'reviews_html': render_template('partials/review_rows.html', reviews=reviews),
+                'pagination_html': render_template('partials/pagination.html', 
+                                                current_page=page, 
+                                                total_pages=total_pages),
+                'showing_info': f"Showing {len(reviews)} out of {total_reviews} reviews"
+            })
+
+        return render_template('dashboard.html', 
+                            reviews=reviews, 
+                            current_page=page, 
+                            total_reviews=total_reviews, 
+                            total_pages=total_pages)
+        
     @app.route('/add_hotel', methods=['GET', 'POST'])
     @login_required
     def add_hotel():
@@ -234,9 +253,15 @@ def init_routes(app):
 
 
     @app.route('/upload', methods=['GET', 'POST'])
+    @app.route('/upload', methods=['GET', 'POST'])
     @login_required
     def upload():
         if request.method == 'POST':
+            # Ambil nama hotel dari user yang sedang login
+            with mysql.connection.cursor() as cur:
+                cur.execute('SELECT name FROM hotels WHERE id = %s', (current_user.hotel_unit,))
+                current_user_hotel_name = cur.fetchone()[0].lower()
+
             if 'file' not in request.files:
                 flash('No file selected')
                 return redirect(request.url)
@@ -249,7 +274,7 @@ def init_routes(app):
             if file:
                 # Use secure filename and save to static uploads folder
                 filename = secure_filename(file.filename)
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)  # UPLOAD_FOLDER harus menunjuk ke app/static/uploads
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(filepath)
 
             # Baca file
@@ -258,29 +283,57 @@ def init_routes(app):
             else:
                 df = pd.read_excel(filepath)
 
+            # Validasi hotel_unit pada setiap baris data
+            invalid_hotel_units = df[df['hotel_unit'].str.lower() != current_user_hotel_name]
+            
+            if not invalid_hotel_units.empty:
+                # Hapus file yang diupload
+                os.remove(filepath)
+                
+                # Siapkan pesan error dengan detail hotel_unit yang tidak sesuai
+                invalid_hotels_list = ", ".join(invalid_hotel_units['hotel_unit'].unique())
+                flash(f'Upload gagal. Hotel unit tidak sesuai: {invalid_hotels_list}')
+                return redirect(request.url)
+
+            # Konversi format tanggal
+            df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.strftime('%Y-%m-%d')
+            # Ambil daftar hotel dari database untuk validasi
+            with mysql.connection.cursor() as cur:
+                cur.execute('SELECT id, name FROM hotels')
+                hotels_map = {hotel[1].lower(): hotel[0] for hotel in cur.fetchall()}
+
             # Proses ulasan dan melatih model
-            sentiment_analyzer.train_and_save(df)  # Latih dan simpan model
+            sentiment_analyzer.train_and_save(df)
 
             # Simpan review ke database
             for _, row in df.iterrows():
+                # Validasi nama hotel
+                hotel_name = row['hotel_unit'].lower()
+                hotel_id = hotels_map.get(hotel_name)
+                
+                if hotel_id is None:
+                    logging.warning(f"Hotel not found: {row['hotel_unit']}")
+                    continue  # Lewati entri ini jika hotel tidak ditemukan
+
                 # Ambil kolom review
-                review = row['review'] if pd.notna(row['review']) else ""  # Tetapkan ke string kosong jika tidak ada review
+                review = row['review'] if pd.notna(row['review']) else ""
                 rating = row['rating'] if pd.notna(row['rating']) else None
+                
                 # Validasi rating
                 if rating is not None and (rating < 1 or rating > 10):
                     logging.warning(f"Review skipped due to invalid rating: {rating}")
-                    continue  # Lewati entri ini jika rating tidak valid
+                    continue
                 
-                cleaned_review = sentiment_analyzer.preprocess_text(review)  # Bersihkan ulasan
-                sentiment = sentiment_analyzer.predict([cleaned_review])[0]  # Dapatkan data prediksi sentimen
+                cleaned_review = sentiment_analyzer.preprocess_text(review)
+                sentiment = sentiment_analyzer.predict([cleaned_review])[0]
 
                 Review.add_review(
-                    row['hotel_unit'] if pd.notna(row['hotel_unit']) else None,
+                    hotel_id,
                     row['name'] if pd.notna(row['name']) else None,
-                    rating,  # Menggunakan rating yang sudah divalidasi
+                    rating,
                     row['date'] if pd.notna(row['date']) else None,
-                    cleaned_review,  # Gunakan teks ulasan yang telah dibersihkan
-                    sentiment  # Gunakan prediksi sentimen
+                    cleaned_review,
+                    sentiment
                 )
 
             os.remove(filepath)  # Bersihkan file yang di-upload
