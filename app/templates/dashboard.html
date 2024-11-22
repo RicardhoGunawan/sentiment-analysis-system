@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-
 {% block content %}
 <div class="page-header d-print-none">
   <div class="container-xl">
@@ -14,42 +13,90 @@
 <div class="page-body">
   <div class="container-xl">
     <div class="row row-deck row-cards">
+      <!-- Filter Section -->
+      <div class="col-12 mb-3">
+        <div class="card">
+          <div class="card-body">
+            <form id="filter-form" class="row g-3 align-items-center">
+              <div class="col-md-4">
+                <label class="form-label">Start Date</label>
+                <input type="date" id="start-date" class="form-control" placeholder="Start Date">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">End Date</label>
+                <input type="date" id="end-date" class="form-control" placeholder="End Date">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">&nbsp;</label>
+                <button type="button" class="btn btn-primary w-100" id="filter-btn">Apply Filter</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Row -->
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Sentiment Distribution</h3>
+          </div>
+          <div class="card-body" style="height: 300px;">
+            <canvas id="sentimentChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Rating Distribution</h3>
+          </div>
+          <div class="card-body" style="height: 300px;">
+            <canvas id="ratingChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Latest Reviews with Scrollbar -->
       <div class="col-12">
         <div class="card">
           <div class="card-header">
             <h3 class="card-title">Latest Reviews</h3>
           </div>
-          <div class="table-responsive" id="table-container">
-            <table class="table card-table table-vcenter">
-              <thead>
-                <tr>
-                  <th>Guest Name</th>
-                  <th>Rating</th>
-                  <th>Date</th>
-                  <th>Review</th>
-                  <th>Sentiment</th>
-                </tr>
-              </thead>
-              <tbody id="review-body">
-                {% for review in reviews %}
-                <tr>
-                  <td>{{ review[2] }}</td>
-                  <td>{{ review[3] }}</td>
-                  <td>{{ review[4] }}</td>
-                  <td>{{ review[5] }}</td>
-                  <td>
-                    {% if review[6] %}
-                    <span class="badge bg-{{ 'success' if review[6] == 'positive' else 'danger' }}">
-                      {{ review[6] }}
-                    </span>
-                    {% else %}
-                    <span class="badge bg-secondary">Unlabeled</span>
-                    {% endif %}
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+          <div class="card-body p-0">
+            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+              <table class="table card-table table-vcenter">
+                <thead style="position: sticky; top: 0; background: white; z-index: 1;">
+                  <tr>
+                    <th>Guest Name</th>
+                    <th>Rating</th>
+                    <th>Date</th>
+                    <th>Review</th>
+                    <th>Sentiment</th>
+                  </tr>
+                </thead>
+                <tbody id="review-body">
+                  {% for review in reviews %}
+                  <tr>
+                    <td>{{ review[2] }}</td>
+                    <td>{{ review[3] }}</td>
+                    <td>{{ review[4] }}</td>
+                    <td>{{ review[5] }}</td>
+                    <td>
+                      {% if review[6] %}
+                      <span class="badge bg-{{ 'success' if review[6] == 'positive' else 'danger' }}">
+                        {{ review[6] }}
+                      </span>
+                      {% else %}
+                      <span class="badge bg-secondary">Unlabeled</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <!-- Pagination Controls -->
@@ -58,7 +105,7 @@
               Showing {{ reviews|length }} out of {{ total_reviews }} reviews
             </div>
             <nav id="pagination-container">
-              <ul class="pagination">
+              <ul class="pagination mb-0">
                 {% include 'partials/pagination.html' %}
               </ul>
             </nav>
@@ -73,43 +120,145 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
   $(document).ready(function() {
-      $("#pagination-container").on("click", ".page-link", function(e) {
-          e.preventDefault();
-          var page = $(this).data("page");
+    $("#pagination-container").on("click", ".page-link", function(e) {
+      e.preventDefault();
+      var page = $(this).data("page");
+
+      if (!page || $(this).parent().hasClass('disabled')) {
+        return;
+      }
+
+      $.ajax({
+        url: '{{ url_for("dashboard") }}',
+        type: 'GET',
+        data: { 
+          page: page,
+          start_date: $('#start-date').val(),
+          end_date: $('#end-date').val()
+        },
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        beforeSend: function() {
+          $("#review-body").addClass('opacity-50');
+        },
+        success: function(response) {
+          $("#review-body").html(response.reviews_html);
+          $("#pagination-container").html(response.pagination_html);
+          $(".showing-info").html(response.showing_info);
           
-          if (!page || $(this).parent().hasClass('disabled')) {
-              return;
+          // Update charts if provided in response
+          if (response.sentiment_data) {
+            updateSentimentChart(response.sentiment_data);
           }
-  
-          $.ajax({
-              url: '{{ url_for("dashboard") }}',
-              type: 'GET',
-              data: { page: page },
-              headers: {
-                  'X-Requested-With': 'XMLHttpRequest'
-              },
-              beforeSend: function() {
-                  // Tambahkan loading indicator jika diperlukan
-                  $("#review-body").addClass('opacity-50');
-              },
-              success: function(response) {
-                  $("#review-body").html(response.reviews_html);
-                  $("#pagination-container").html(response.pagination_html);
-                  $(".showing-info").html(response.showing_info);
-                  
-                  // Update URL tanpa reload
-                  const url = new URL(window.location);
-                  url.searchParams.set('page', page);
-                  window.history.pushState({}, '', url);
-              },
-              error: function() {
-                  alert("Error loading data. Please try again.");
-              },
-              complete: function() {
-                  $("#review-body").removeClass('opacity-50');
-              }
-          });
+          if (response.rating_data) {
+            updateRatingChart(response.rating_data);
+          }
+
+          const url = new URL(window.location);
+          url.searchParams.set('page', page);
+          window.history.pushState({}, '', url);
+        },
+        error: function() {
+          alert("Error loading data. Please try again.");
+        },
+        complete: function() {
+          $("#review-body").removeClass('opacity-50');
+        }
       });
+    });
+
+    // Initialize Charts
+    let sentimentChart, ratingChart;
+
+    function initializeCharts() {
+      // Sentiment Chart
+      const sentimentCtx = document.getElementById('sentimentChart').getContext('2d');
+      sentimentChart = new Chart(sentimentCtx, {
+        type: 'pie',
+        data: {
+          labels: {{ sentiment_distribution_keys|tojson }},
+          datasets: [{
+            data: {{ sentiment_distribution_values|tojson }},
+            backgroundColor: ['#28a745', '#dc3545', '#6c757d']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom'
+            }
+          }
+        }
+      });
+
+      // Rating Distribution Chart
+      const ratingCtx = document.getElementById('ratingChart').getContext('2d');
+      ratingChart = new Chart(ratingCtx, {
+        type: 'line',
+        data: {
+          labels: {{ rating_distribution_keys|tojson }},
+          datasets: [{
+            label: 'Number of Reviews',
+            data: {{ rating_distribution_values|tojson }},
+            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          },
+          plugins: {
+            legend: {
+              position: 'bottom'
+            }
+          }
+        }
+      });
+    }
+
+    // Initialize charts when DOM is loaded
+    initializeCharts();
+
+    // Filter button click handler
+    $('#filter-btn').click(function() {
+      $.ajax({
+        url: '{{ url_for("dashboard") }}',
+        type: 'GET',
+        data: {
+          start_date: $('#start-date').val(),
+          end_date: $('#end-date').val(),
+          page: 1
+        },
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        success: function(response) {
+          $("#review-body").html(response.reviews_html);
+          $("#pagination-container").html(response.pagination_html);
+          $(".showing-info").html(response.showing_info);
+          
+          // Update charts if provided in response
+          if (response.sentiment_data) {
+            updateSentimentChart(response.sentiment_data);
+          }
+          if (response.rating_data) {
+            updateRatingChart(response.rating_data);
+          }
+        },
+        error: function() {
+          alert("Error applying filters. Please try again.");
+        }
+      });
+    });
   });
-  </script>
+</script>
 {% endblock %}

@@ -126,8 +126,92 @@ class Review:
         cursor.close()
         return reviews, total_reviews
     
-    
+    @staticmethod
+    def get_overall_sentiment_distribution():
+        """Menghitung distribusi sentimen untuk semua review."""
+        with mysql.connection.cursor() as cur:
+            cur.execute('''
+                SELECT sentiment_label, COUNT(*) as count 
+                FROM reviews 
+                WHERE sentiment_label IS NOT NULL 
+                GROUP BY sentiment_label
+            ''')
+            return dict(cur.fetchall())
 
+    @staticmethod
+    def get_hotel_sentiment_distribution(hotel_unit: str):
+        """Menghitung distribusi sentimen untuk unit hotel tertentu."""
+        with mysql.connection.cursor() as cur:
+            cur.execute('''
+                SELECT sentiment_label, COUNT(*) as count 
+                FROM reviews 
+                WHERE sentiment_label IS NOT NULL AND hotel_unit = %s 
+                GROUP BY sentiment_label
+            ''', (hotel_unit,))
+            return dict(cur.fetchall())
 
+    @staticmethod
+    def get_rating_distribution():
+        """Menghitung distribusi rating untuk semua review."""
+        with mysql.connection.cursor() as cur:
+            cur.execute('''
+                SELECT rating, COUNT(*) as count 
+                FROM reviews 
+                GROUP BY rating 
+                ORDER BY rating
+            ''')
+            return dict(cur.fetchall())
 
+    @staticmethod
+    def get_hotel_rating_distribution(hotel_unit: str):
+        """Menghitung distribusi rating untuk unit hotel tertentu."""
+        with mysql.connection.cursor() as cur:
+            cur.execute('''
+                SELECT rating, COUNT(*) as count 
+                FROM reviews 
+                WHERE hotel_unit = %s 
+                GROUP BY rating 
+                ORDER BY rating
+            ''', (hotel_unit,))
+            return dict(cur.fetchall())
+        
+    @staticmethod
+    def get_filtered_hotel_reviews_by_date(hotel_unit, start_date, end_date, page, per_page=10):
+        offset = (page - 1) * per_page
+        with mysql.connection.cursor() as cur:
+            cur.execute('''
+                SELECT * FROM reviews 
+                WHERE hotel_unit = %s AND review_date BETWEEN %s AND %s 
+                ORDER BY review_date DESC 
+                LIMIT %s OFFSET %s
+            ''', (hotel_unit, start_date, end_date, per_page, offset))
+            reviews = cur.fetchall()
+            cur.execute('''
+                SELECT COUNT(*) FROM reviews 
+                WHERE hotel_unit = %s AND review_date BETWEEN %s AND %s
+            ''', (hotel_unit, start_date, end_date))
+            total_reviews = cur.fetchone()[0]
+        return reviews, total_reviews
 
+    @staticmethod
+    def get_filtered_hotel_sentiment_distribution(hotel_unit, start_date, end_date):
+        with mysql.connection.cursor() as cur:
+            cur.execute('''
+                SELECT sentiment_label, COUNT(*) as count 
+                FROM reviews 
+                WHERE hotel_unit = %s AND review_date BETWEEN %s AND %s AND sentiment_label IS NOT NULL
+                GROUP BY sentiment_label
+            ''', (hotel_unit, start_date, end_date))
+            return dict(cur.fetchall())
+
+    @staticmethod
+    def get_filtered_hotel_rating_distribution(hotel_unit, start_date, end_date):
+        with mysql.connection.cursor() as cur:
+            cur.execute('''
+                SELECT rating, COUNT(*) as count 
+                FROM reviews 
+                WHERE hotel_unit = %s AND review_date BETWEEN %s AND %s
+                GROUP BY rating 
+                ORDER BY rating
+            ''', (hotel_unit, start_date, end_date))
+            return dict(cur.fetchall())

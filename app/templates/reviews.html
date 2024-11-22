@@ -5,7 +5,7 @@
     <div class="container-xl">
         <div class="row g-2 align-items-center">
             <div class="col">
-                <h2 class="page-title">Reviews</h2>
+                <h2 class="page-title">Reviews Sentiment</h2>
             </div>
         </div>
     </div>
@@ -15,42 +15,36 @@
         <div class="card">
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-vcenter card-table" id="reviews-table">
-                        <thead>
-                            <tr>
-                                <th>Hotel Unit</th>
-                                <th>Guest Name</th>
-                                <th>Rating</th>
-                                <th>Date</th>
-                                <th>Review</th>
-                                <th>Sentiment</th>
-                                <th>Action</th>
-                            </tr>
+                    <table class="table card-table table-vcenter">
+                        <thead style="position: sticky; top: 0; background: white; z-index: 1;">
+                          <tr>
+                            <th>Guest Name</th>
+                            <th>Rating</th>
+                            <th>Date</th>
+                            <th>Review</th>
+                            <th>Sentiment</th>
+                          </tr>
                         </thead>
-                        <tbody>
-                            {% for review in reviews %}
-                            <tr>
-                                <td>{{ review[1] }}</td>
-                                <td>{{ review[2] }}</td>
-                                <td>{{ review[3] }}</td>
-                                <td>{{ review[4] }}</td>
-                                <td>{{ review[5] }}</td>
-                                <td>
-                                    <select class="form-select sentiment-select" data-review-id="{{ review[0] }}">
-                                        <option value="">Select sentiment</option>
-                                        <option value="positive" {% if review[6] == 'positive' %}selected{% endif %}>Positive</option>
-                                        <option value="negative" {% if review[6] == 'negative' %}selected{% endif %}>Negative</option>
-                                    </select>
-                                </td>
-                                <td>
-                                    <button class="btn btn-primary btn-sm save-sentiment" data-review-id="{{ review[0] }}">
-                                        Save
-                                    </button>
-                                </td>
-                            </tr>
-                            {% endfor %}
+                        <tbody id="review-body">
+                          {% for review in reviews %}
+                          <tr>
+                            <td>{{ review[2] }}</td>
+                            <td>{{ review[3] }}</td>
+                            <td>{{ review[4] }}</td>
+                            <td>{{ review[5] }}</td>
+                            <td>
+                              {% if review[6] %}
+                              <span class="badge bg-{{ 'success' if review[6] == 'positive' else 'danger' }}">
+                                {{ review[6] }}
+                              </span>
+                              {% else %}
+                              <span class="badge bg-secondary">Unlabeled</span>
+                              {% endif %}
+                            </td>
+                          </tr>
+                          {% endfor %}
                         </tbody>
-                    </table>
+                      </table>
                 </div>
             </div>
         </div>
