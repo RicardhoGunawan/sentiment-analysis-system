@@ -1,9 +1,10 @@
+import numpy as np
 import pandas as pd
 import re
 import nltk
+from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
+from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
-from nltk.stem import PorterStemmer
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.svm import SVC
 from sklearn.model_selection import train_test_split
@@ -18,29 +19,40 @@ nltk.download('stopwords')
 
 class SentimentAnalyzer:
     def __init__(self):
-        self.stemmer = PorterStemmer()
-        # Buat daftar stopwords bahasa Indonesia
-        self.stop_words = set([
-            'yang', 'di', 'ke', 'dari', 'pada', 'dalam', 'untuk', 'dengan', 'dan', 'atau',
-            'ini', 'itu', 'juga', 'sudah', 'saya', 'anda', 'dia', 'mereka', 'kita', 'akan',
-            'bisa', 'ada', 'tidak', 'saat', 'oleh', 'setelah', 'tentang', 'seperti', 'ketika',
-            'bagi', 'sampai', 'karena', 'jika', 'namun', 'serta', 'lain', 'sebuah', 'para'
-        ])
+        # Gunakan stemmer dari Sastrawi
+        factory = StemmerFactory()
+        self.stemmer = factory.create_stemmer()
+        
+        # Gunakan stopwords dari Sastrawi
+        stopword_factory = StopWordRemoverFactory()
+        self.stop_words = set(stopword_factory.get_stop_words())
+
         self.vectorizer = CountVectorizer()
         self.classifier = SVC(kernel='linear')
-        
+
         # Kamus kata positif dan negatif bahasa Indonesia
         self.positive_words = set([
-            'bagus', 'baik', 'suka', 'senang', 'puas', 'mantap', 'keren', 'enak',
-            'recommended', 'rekomen', 'memuaskan', 'ramah', 'cepat', 'bersih',
-            'nyaman', 'top', 'oke', 'ok', 'recommended', 'worth', 'mantul','memuaskan'
+            'bagus', 'baik', 'suka', 'senang', 'puas', 'mantap', 'keren', 'enak', 'lembut',
+            'recommended', 'rekomen', 'memuaskan', 'ramah', 'cepat', 'bersih', 'nyaman', 
+            'top', 'oke', 'ok', 'worth', 'mantul', 'megah', 'indah', 'cantik', 'luas', 
+            'strategis', 'mewah', 'murah', 'terjangkau', 'aman', 'hangat', 'asri', 
+            'teratur', 'rapi', 'seru', 'friendly', 'helpful', 'tenang', 'privasi', 
+            'istimewa', 'sopan', 'terbaik', 'istirahat', 'lega', 'relax', 'lux', 'perfect', 
+            'nikmat', 'nyaman', 'senyap', 'sempurna', 'worth it', 'ramah lingkungan', 
+            'fresh', 'profesional', 'bersahabat', 'inspiratif', 'kekinian', 'hebat', 'canggih','alternatif'
         ])
         
         self.negative_words = set([
-            'buruk', 'jelek', 'kecewa', 'mahal', 'lambat', 'kotor', 'kasar',
-            'tidak', 'jangan', 'hancur', 'rusak', 'busuk', 'mahal', 'kurang',
-            'cacad', 'rugi', 'bau', 'pahit', 'basi', 'lecet','tolong','kecoa',
-            'mempersulit','kurang','jorok','mati'
+            'buruk', 'jelek', 'kecewa', 'mahal', 'lambat', 'kotor', 'kasar', 'jorok', 
+            'bising', 'ribut', 'berisik', 'mati', 'bau', 'rusak', 'kecoa', 'lalat', 
+            'mengerikan', 'seram', 'hancur', 'busuk', 'basi', 'lecet', 'panas', 
+            'sempit', 'tidak nyaman', 'tidak bersih', 'tidak aman', 'gelap', 'dingin', 
+            'susah', 'membingungkan', 'menakutkan', 'terlalu mahal', 'tidak ramah', 
+            'tidak profesional', 'pelit', 'berantakan', 'penuh', 'kurang baik', 
+            'tidak memuaskan', 'tidak sopan', 'mengganggu', 'tidak layak', 
+            'tidak terawat', 'lelet', 'melelahkan', 'tidak sesuai', 'penipuan', 
+            'membosankan', 'menyesal', 'kuno', 'jadul', 'basi', 'tidak higienis', 
+            'parah', 'kejam', 'terisolasi', 'tidak ramah lingkungan'
         ])
 
     def preprocess_text(self, text):
@@ -57,79 +69,57 @@ class SentimentAnalyzer:
 
             # 4. Date removal
             text = re.sub(r'\d{1,2}(st|nd|rd|th)?[-./]\d{1,2}[-./]\d{2,4}', '', text)
-            text = re.compile(r'(\d{1,2})?(st|nd|rd|th)?[-./,]?\s?(of)?\s?([J|j]an(uary)?|[F|f]eb(ruary)?|[Mm]ar(ch)?|[Aa]pr(il)?|[Mm]ay|[Jj]un(e)?|[Jj]ul(y)?|[Aa]ug(ust)?|[Ss]ep(tember)?|[Oo]ct(ober)?|[Nn]ov(ember)?|[Dd]ec(ember)?)\s?(\d{1,2})?(st|nd|rd|th)?\s?[-./,]?\s?(\d{2,4})?'
-                    ).sub('', text)
 
             # 5. HTML tags removal
             text = BeautifulSoup(text, 'html.parser').get_text()
 
             # 6. Emojis removal
-            text = re.sub(r"["
+            text = re.sub(r"[" 
                         u"\U0001F600-\U0001F64F"  # emoticons
                         u"\U0001F300-\U0001F5FF"  # symbols & pictographs
                         u"\U0001F680-\U0001F6FF"  # transport & map symbols
-                        u"\U0001F1E0-\U0001F1FF"  # flags
-                        u"\U00002500-\U00002BEF"  # chinese char
-                        u"\U00002702-\U000027B0"
-                        u"\U00002702-\U000027B0"
-                        u"\U000024C2-\U0001F251"
-                        u"\U0001f926-\U0001f937"
-                        u"\U00010000-\U0010ffff"
-                        u"\u2640-\u2642"
-                        u"\u2600-\u2B55"
-                        u"\u200d"
-                        u"\u23cf"
-                        u"\u23e9"
-                        u"\u231a"
-                        u"\ufe0f"  # dingbats
-                        u"\u3030"
+                        u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
                         "]+", '', text)
 
-            # 7. Remove emoticons based on the provided dictionary
-            EMOTICONS = {
-                u":‑$$": "Happy face or smiley",
-                u":$$": "Happy face or smiley",
-                u":-$$": "Happy face or smiley",
-                u":$$": "Happy face or smiley",
-                u":-3": "Happy face smiley",
-                u":3": "Happy face smiley",
-                u":->": "Happy face smiley",
-                u":>": "Happy face smiley",
-                u"8-$$": "Happy face smiley",
-                u":o$$": "Happy face smiley",
-                u":-\\}": "Happy face smiley",  # Memperbaiki escape
-                u":\\}": "Happy face smiley",   # Memperbaiki escape
-                u":-D": "Laughing, big grin or laugh with glasses",
-                u":D": "Laughing, big grin or laugh with glasses",
-                u"8‑D": "Laughing, big grin or laugh with glasses",
-                u"8D": "Laughing, big grin or laugh with glasses",
-                u"X‑D": "Laughing, big grin or laugh with glasses",
-                u"XD": "Laughing, big grin or laugh with glasses",
-                # Lanjutkan untuk emotikon lainnya, pastikan semua telah diperbaiki
-                u":-\\|": "Frown, sad, angry or pouting",
-                u">:\$$": "Frown, sad, angry or pouting",
-                u":\\{": "Frown, sad, angry or pouting",
-                u":@": "Frown, sad, angry or pouting",
-                            # Tambahkan emoticons lain yang sesuai
-            }
-            text = re.sub(u'(' + u'|'.join(emo for emo in EMOTICONS) + u')', '', text)
-
-            # 8. Hashtags and mentions removal
+            # 7. Hashtags and mentions removal
             text = re.sub(r'(@\S+|#\S+)', '', text)
 
-            # 9. Punctuation removal
+            # 8. Punctuation removal
             text = text.translate(str.maketrans('', '', string.punctuation))
 
-            # 10. Number removal
+            # 9. Number removal
             text = re.sub(r'\d+', '', text)
 
-            # 11. Extra whitespaces removal
+            # 10. Extra whitespaces removal
             text = ' '.join(text.split())
 
-            # 12. Tokenization and stemming (jika diperlukan)
-            tokens = word_tokenize(text)  # Pastikan Anda memiliki NLTK dengan tokenizer terinstal
-            tokens = [self.stemmer.stem(token) for token in tokens if token not in self.stop_words]
-            
+            # Tokenizing (memecah kalimat menjadi kata-kata)
+            tokens = word_tokenize(text)
+
+            # Normalization (misalnya mengganti kata tidak baku dengan yang baku)
+            normalization_dict = {
+                'gak': 'tidak',
+                'nggak': 'tidak',
+                'ga': 'tidak',
+                'aja': 'saja',
+                'kok': 'tidak',
+                'dong': '',
+                'lah': 'sudah',
+                'memakan': 'makan',
+                'kmarin': 'kemarin',
+                'cocok' : 'bagus',
+                'muas' : 'puas',
+                'sarap' : 'sarapan',
+                'alternativ' : 'alternatif',
+            }
+            tokens = [normalization_dict.get(token, token) for token in tokens]
+
+            # Stopwords removal (gunakan Sastrawi)
+            tokens = [token for token in tokens if token not in self.stop_words]
+
+            # Stemming (mengubah kata ke bentuk dasar dengan Sastrawi)
+            tokens = [self.stemmer.stem(token) for token in tokens]
+
             # Gabungkan kembali token menjadi string
             return ' '.join(tokens)
         else:
@@ -140,7 +130,7 @@ class SentimentAnalyzer:
     def get_sentiment_label(self, text):
         """Get sentiment label from text using custom Indonesian sentiment dictionary."""
         if not isinstance(text, str):
-            return 'neutral'
+            return None
             
         # Preprocess the text
         text = text.lower()
@@ -156,7 +146,7 @@ class SentimentAnalyzer:
         elif negative_count > positive_count:
             return 'negative'
         else:
-            return 'neutral'
+            return None
 
     def prepare_data(self, df):
         """Prepares data for training by processing reviews and removing duplicates."""
@@ -172,9 +162,27 @@ class SentimentAnalyzer:
         return df_no_duplicates
 
     def train(self, X_train, y_train):
-        """Trains the sentiment analysis model."""
+        # Gabungkan X_train dan y_train untuk menjaga konsistensi saat pembersihan
+        combined_data = [(x, y) for x, y in zip(X_train, y_train) if y is not None and not pd.isnull(y)]
+        
+        # Pisahkan kembali menjadi X_train dan y_train setelah pembersihan
+        X_train, y_train = zip(*combined_data)
+        
+        # Konversi kembali ke list jika dibutuhkan
+        X_train = list(X_train)
+        y_train = list(y_train)
+
+        # Validasi panjang X_train dan y_train
+        if not len(X_train) == len(y_train):
+            raise ValueError("Jumlah X_train dan y_train tidak cocok setelah pembersihan.")
+        
+        # Transform data fitur dengan vectorizer
         X_train_vectors = self.vectorizer.fit_transform(X_train)
+
+        # Latih classifier
         self.classifier.fit(X_train_vectors, y_train)
+
+
 
     def train_and_save(self, df):
         """Trains and saves the model using provided data and labels."""
