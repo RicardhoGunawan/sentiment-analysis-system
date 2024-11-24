@@ -45,6 +45,62 @@ class User(UserMixin):
                 logging.error(f"Error adding user: {e}")
                 mysql.connection.rollback()
                 return False
+class Hotel:
+    @staticmethod
+    def get_all_hotels():
+        """Mengambil semua data hotel."""
+        with mysql.connection.cursor() as cur:
+            cur.execute('SELECT id, name FROM hotels ORDER BY name')
+            hotels = cur.fetchall()
+            return [{'id': hotel[0], 'name': hotel[1]} for hotel in hotels]
+    @staticmethod
+    def get_by_id(hotel_id: int):
+        """Mengambil data hotel berdasarkan ID."""
+        with mysql.connection.cursor() as cur:
+            cur.execute('SELECT id, name FROM hotels WHERE id = %s', (hotel_id,))
+            hotel = cur.fetchone()
+            if hotel:
+                return {'id': hotel[0], 'name': hotel[1]}
+        return None
+
+    @staticmethod
+    def add_hotel(name: str) -> bool:
+        """Menambahkan hotel baru."""
+        with mysql.connection.cursor() as cur:
+            try:
+                cur.execute('INSERT INTO hotels (name) VALUES (%s)', (name,))
+                mysql.connection.commit()
+                return True
+            except Exception as e:
+                logging.error(f"Error adding hotel: {e}")
+                mysql.connection.rollback()
+                return False
+
+    @staticmethod
+    def update_hotel(hotel_id: int, name: str) -> bool:
+        """Mengupdate data hotel."""
+        with mysql.connection.cursor() as cur:
+            try:
+                cur.execute('UPDATE hotels SET name = %s WHERE id = %s', (name, hotel_id))
+                mysql.connection.commit()
+                return True
+            except Exception as e:
+                logging.error(f"Error updating hotel: {e}")
+                mysql.connection.rollback()
+                return False
+
+    @staticmethod
+    def delete_hotel(hotel_id: int) -> bool:
+        """Menghapus hotel."""
+        with mysql.connection.cursor() as cur:
+            try:
+                cur.execute('DELETE FROM hotels WHERE id = %s', (hotel_id,))
+                mysql.connection.commit()
+                return True
+            except Exception as e:
+                logging.error(f"Error deleting hotel: {e}")
+                mysql.connection.rollback()
+                return False
 
 class Review:
     @staticmethod
@@ -215,3 +271,6 @@ class Review:
                 ORDER BY rating
             ''', (hotel_unit, start_date, end_date))
             return dict(cur.fetchall())
+        
+    
+    

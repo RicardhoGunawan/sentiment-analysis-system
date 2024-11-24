@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base.html" %} 
 {% block content %}
 <div class="page-header d-print-none">
   <div class="container-xl">
@@ -13,27 +13,29 @@
 <div class="page-body">
   <div class="container-xl">
     <div class="row row-deck row-cards">
-      <!-- Filter Section -->
+      
+      <!-- Admin Hotel Selection -->
+      {% if current_user.role == 'admin' %}
       <div class="col-12 mb-3">
         <div class="card">
           <div class="card-body">
-            <form id="filter-form" class="row g-3 align-items-center">
+            <div class="row align-items-center">
               <div class="col-md-4">
-                <label class="form-label">Start Date</label>
-                <input type="date" id="start-date" class="form-control" placeholder="Start Date">
+                <label class="form-label">Select Hotel</label>
+                <select id="hotel-select" class="form-select">
+                  <option value="">All Hotels</option>
+                  {% for hotel in hotels %}
+                    <option value="{{ hotel.id }}" {% if selected_hotel_id == hotel.id %}selected{% endif %}>
+                      {{ hotel.name }}
+                    </option>
+                  {% endfor %}
+                </select>
               </div>
-              <div class="col-md-4">
-                <label class="form-label">End Date</label>
-                <input type="date" id="end-date" class="form-control" placeholder="End Date">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">&nbsp;</label>
-                <button type="button" class="btn btn-primary w-100" id="filter-btn">Apply Filter</button>
-              </div>
-            </form>
+            </div>
           </div>
         </div>
       </div>
+      {% endif %}
 
       <!-- Charts Row -->
       <div class="col-md-6">
@@ -41,7 +43,7 @@
           <div class="card-header">
             <h3 class="card-title">Sentiment Distribution</h3>
           </div>
-          <div class="card-body" style="height: 300px;">
+          <div class="card-body" style="height: 300px">
             <canvas id="sentimentChart"></canvas>
           </div>
         </div>
@@ -52,7 +54,7 @@
           <div class="card-header">
             <h3 class="card-title">Rating Distribution</h3>
           </div>
-          <div class="card-body" style="height: 300px;">
+          <div class="card-body" style="height: 300px">
             <canvas id="ratingChart"></canvas>
           </div>
         </div>
@@ -61,14 +63,38 @@
       <!-- Latest Reviews with Scrollbar -->
       <div class="col-12">
         <div class="card">
+          <!-- Filter Section -->
+          <div class="col-12 mb-3">
+            <div class="card">
+              <div class="card-body">
+                <form id="filter-form" class="row g-3 align-items-center">
+                  <div class="col-md-4">
+                    <label class="form-label">Start Date</label>
+                    <input type="date" id="start-date" class="form-control" placeholder="Start Date"/>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">End Date</label>
+                    <input type="date" id="end-date" class="form-control" placeholder="End Date"/>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="button" class="btn btn-primary w-100" id="filter-btn">
+                      Apply Filter
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
           <div class="card-header">
             <h3 class="card-title">Latest Reviews</h3>
           </div>
           <div class="card-body p-0">
-            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+            <div class="table-responsive" style="max-height: 400px; overflow-y: auto">
               <table class="table card-table table-vcenter">
                 <thead style="position: sticky; top: 0; background: white; z-index: 1;">
                   <tr>
+                    <th>Hotel</th>
                     <th>Guest Name</th>
                     <th>Rating</th>
                     <th>Date</th>
@@ -79,6 +105,7 @@
                 <tbody id="review-body">
                   {% for review in reviews %}
                   <tr>
+                    <td>{{ review[1] }}</td>
                     <td>{{ review[2] }}</td>
                     <td>{{ review[3] }}</td>
                     <td>{{ review[4] }}</td>
@@ -118,147 +145,198 @@
 
 <!-- Include jQuery -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>  <!-- Add Chart.js -->
+
+
 <script>
   $(document).ready(function() {
-    $("#pagination-container").on("click", ".page-link", function(e) {
-      e.preventDefault();
-      var page = $(this).data("page");
-
-      if (!page || $(this).parent().hasClass('disabled')) {
-        return;
-      }
-
-      $.ajax({
-        url: '{{ url_for("dashboard") }}',
-        type: 'GET',
-        data: { 
-          page: page,
-          start_date: $('#start-date').val(),
-          end_date: $('#end-date').val()
-        },
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        beforeSend: function() {
-          $("#review-body").addClass('opacity-50');
-        },
-        success: function(response) {
-          $("#review-body").html(response.reviews_html);
-          $("#pagination-container").html(response.pagination_html);
-          $(".showing-info").html(response.showing_info);
-          
-          // Update charts if provided in response
-          if (response.sentiment_data) {
-            updateSentimentChart(response.sentiment_data);
-          }
-          if (response.rating_data) {
-            updateRatingChart(response.rating_data);
-          }
-
-          const url = new URL(window.location);
-          url.searchParams.set('page', page);
-          window.history.pushState({}, '', url);
-        },
-        error: function() {
-          alert("Error loading data. Please try again.");
-        },
-        complete: function() {
-          $("#review-body").removeClass('opacity-50');
-        }
-      });
-    });
-
-    // Initialize Charts
     let sentimentChart, ratingChart;
 
-    function initializeCharts() {
-      // Sentiment Chart
-      const sentimentCtx = document.getElementById('sentimentChart').getContext('2d');
-      sentimentChart = new Chart(sentimentCtx, {
-        type: 'pie',
-        data: {
-          labels: {{ sentiment_distribution_keys|tojson }},
-          datasets: [{
-            data: {{ sentiment_distribution_values|tojson }},
-            backgroundColor: ['#28a745', '#dc3545']
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: 'bottom'
+    // Fungsi untuk mendapatkan warna berdasarkan sentiment dengan urutan tetap
+    function getChartColors(data) {
+        const colors = [];
+        // Pastikan urutan warna sesuai dengan label
+        Object.keys(data).forEach(label => {
+            if (label.toLowerCase() === 'positive') {
+                colors.push('#28a745'); // Hijau untuk positive
+            } else if (label.toLowerCase() === 'negative') {
+                colors.push('#dc3545'); // Merah untuk negative
+            } else {
+                colors.push('#6c757d'); // Abu-abu untuk lainnya
             }
-          }
-        }
-      });
-
-      // Rating Distribution Chart
-      const ratingCtx = document.getElementById('ratingChart').getContext('2d');
-      ratingChart = new Chart(ratingCtx, {
-        type: 'line',
-        data: {
-          labels: {{ rating_distribution_keys|tojson }},
-          datasets: [{
-            label: 'Number of Reviews',
-            data: {{ rating_distribution_values|tojson }},
-            backgroundColor: 'rgba(54, 162, 235, 0.5)',
-            borderColor: 'rgba(54, 162, 235, 1)',
-            tension: 0.4
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            y: {
-              beginAtZero: true
-            }
-          },
-          plugins: {
-            legend: {
-              position: 'bottom'
-            }
-          }
-        }
-      });
+        });
+        return colors;
     }
 
-    // Initialize charts when DOM is loaded
+    function initializeCharts() {
+        // Initialize Sentiment Chart
+        const sentimentCtx = document.getElementById('sentimentChart').getContext('2d');
+        const sentimentData = {};
+        {{ sentiment_distribution_keys | tojson }}.forEach((key, index) => {
+            sentimentData[key] = {{ sentiment_distribution_values | tojson }}[index];
+        });
+
+        sentimentChart = new Chart(sentimentCtx, {
+            type: 'pie',
+            data: {
+                labels: Object.keys(sentimentData),
+                datasets: [{
+                    data: Object.values(sentimentData),
+                    backgroundColor: getChartColors(sentimentData),
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: '#333',
+                            font: {
+                                size: 12
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                label += context.parsed + ' reviews';
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Initialize Rating Chart
+        const ratingCtx = document.getElementById('ratingChart').getContext('2d');
+        ratingChart = new Chart(ratingCtx, {
+            type: 'bar',
+            data: {
+                labels: {{ rating_distribution_keys | tojson }},
+                datasets: [{
+                    label: 'Number of Reviews',
+                    data: {{ rating_distribution_values | tojson }},
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.parsed.y} reviews`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateCharts(response) {
+        // Update Sentiment Chart
+        if (sentimentChart && response.sentiment_data) {
+            // Urutkan data sentiment untuk konsistensi
+            const sortedLabels = Object.keys(response.sentiment_data).sort((a, b) => {
+                // Pastikan positive selalu pertama
+                if (a.toLowerCase() === 'positive') return -1;
+                if (b.toLowerCase() === 'positive') return 1;
+                return a.localeCompare(b);
+            });
+            
+            const sortedData = sortedLabels.map(label => response.sentiment_data[label]);
+            
+            sentimentChart.data.labels = sortedLabels;
+            sentimentChart.data.datasets[0].data = sortedData;
+            sentimentChart.data.datasets[0].backgroundColor = getChartColors(
+                Object.fromEntries(sortedLabels.map((label, i) => [label, sortedData[i]]))
+            );
+            sentimentChart.update();
+        }
+
+        // Update Rating Chart
+        if (ratingChart && response.rating_data) {
+            const ratingLabels = Object.keys(response.rating_data);
+            const ratingValues = Object.values(response.rating_data);
+            
+            ratingChart.data.labels = ratingLabels;
+            ratingChart.data.datasets[0].data = ratingValues;
+            ratingChart.update();
+        }
+    }
+
+      function reloadData(page = 1) {
+        const selectedHotel = $('#hotel-select').val();
+        const startDate = $('#start-date').val();
+        const endDate = $('#end-date').val();
+        
+        $.ajax({
+            url: '{{ url_for("dashboard") }}',
+            type: 'GET',
+            data: {
+                hotel_id: selectedHotel,
+                start_date: startDate,
+                end_date: endDate,
+                page: page
+            },
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            success: function(response) {
+                $("#review-body").html(response.reviews_html);
+                $("#pagination-container").html(response.pagination_html);
+                updateCharts(response);
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading data:", error);
+                alert("Failed to load data. Please try again.");
+            }
+        });
+      }
+
+    // Initialize charts on page load
     initializeCharts();
 
-    // Filter button click handler
-    $('#filter-btn').click(function() {
-      $.ajax({
-        url: '{{ url_for("dashboard") }}',
-        type: 'GET',
-        data: {
-          start_date: $('#start-date').val(),
-          end_date: $('#end-date').val(),
-          page: 1
-        },
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        success: function(response) {
-          $("#review-body").html(response.reviews_html);
-          $("#pagination-container").html(response.pagination_html);
-          $(".showing-info").html(response.showing_info);
-          
-          // Update charts if provided in response
-          if (response.sentiment_data) {
-            updateSentimentChart(response.sentiment_data);
-          }
-          if (response.rating_data) {
-            updateRatingChart(response.rating_data);
-          }
-        },
-        error: function() {
-          alert("Error applying filters. Please try again.");
-        }
-      });
+    // Event handlers
+    $('#hotel-select').change(function() {
+        reloadData(1);
     });
-  });
+
+    $('#filter-btn').click(function() {
+        reloadData(1);
+    });
+
+    // Pagination handler
+    $(document).on("click", ".page-link", function(e) {
+        e.preventDefault();
+        const page = $(this).data("page");
+        if (page && !$(this).parent().hasClass('disabled')) {
+            reloadData(page);
+        }
+    });
+});
 </script>
 {% endblock %}

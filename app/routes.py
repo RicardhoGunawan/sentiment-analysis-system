@@ -7,7 +7,7 @@ import pandas as pd
 from datetime import datetime
 import logging
 from . import mysql, login_manager
-from .models import User, Review
+from .models import User, Review, Hotel  
 from .sentiment import SentimentAnalyzer  # Import kelas SentimentAnalyzer
 
 def init_routes(app):
@@ -65,14 +65,15 @@ def init_routes(app):
     def dashboard():
         page = request.args.get('page', default=1, type=int)
         per_page = 10
-        start_date = request.args.get('start_date')  # Ambil tanggal mulai dari query
-        end_date = request.args.get('end_date')  # Ambil tanggal akhir dari query
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        selected_hotel_id = request.args.get('hotel_id', type=int)  # Tambahkan ini
 
         # Validasi nilai `page`
         if page < 1:
-            page = 1  # Setel nilai `page` ke 1 jika tidak valid
+            page = 1
 
-        # Validasi format `start_date` dan `end_date`
+        # Validasi format tanggal
         def validate_date(date_str):
             try:
                 return datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -83,24 +84,44 @@ def init_routes(app):
         end_date = validate_date(end_date)
 
         if start_date and end_date and start_date > end_date:
-            # Jika rentang tanggal tidak valid, abaikan filter tanggal
             start_date, end_date = None, None
+
+        # Get list of hotels for admin
+        hotels = []
+        if current_user.role == 'admin':
+            hotels = Hotel.get_all_hotels()  # Tambahkan method ini ke models
 
         # Validasi level akses pengguna dan filter data berdasarkan role
         if current_user.role == 'admin':
-            if start_date or end_date:
-                # Filter ulasan berdasarkan rentang tanggal untuk admin
-                reviews, total_reviews = Review.get_filtered_reviews_by_date(start_date, end_date, page)
-                sentiment_distribution = Review.get_filtered_sentiment_distribution(start_date, end_date)
-                rating_distribution = Review.get_filtered_rating_distribution(start_date, end_date)
+            if selected_hotel_id:
+                # Jika admin memilih hotel specific
+                if start_date or end_date:
+                    reviews, total_reviews = Review.get_filtered_hotel_reviews_by_date(
+                        selected_hotel_id, start_date, end_date, page
+                    )
+                    sentiment_distribution = Review.get_filtered_hotel_sentiment_distribution(
+                        selected_hotel_id, start_date, end_date
+                    )
+                    rating_distribution = Review.get_filtered_hotel_rating_distribution(
+                        selected_hotel_id, start_date, end_date
+                    )
+                else:
+                    reviews, total_reviews = Review.get_hotel_reviews_paginated(selected_hotel_id, page)
+                    sentiment_distribution = Review.get_hotel_sentiment_distribution(selected_hotel_id)
+                    rating_distribution = Review.get_hotel_rating_distribution(selected_hotel_id)
             else:
-                # Tanpa filter tanggal
-                reviews, total_reviews = Review.get_paginated_reviews(page)
-                sentiment_distribution = Review.get_overall_sentiment_distribution()
-                rating_distribution = Review.get_rating_distribution()
+                # Jika admin melihat semua hotel
+                if start_date or end_date:
+                    reviews, total_reviews = Review.get_filtered_reviews_by_date(start_date, end_date, page)
+                    sentiment_distribution = Review.get_filtered_sentiment_distribution(start_date, end_date)
+                    rating_distribution = Review.get_filtered_rating_distribution(start_date, end_date)
+                else:
+                    reviews, total_reviews = Review.get_paginated_reviews(page)
+                    sentiment_distribution = Review.get_overall_sentiment_distribution()
+                    rating_distribution = Review.get_rating_distribution()
         else:
+            # Logic untuk user biasa tetap sama
             if start_date or end_date:
-                # Filter ulasan berdasarkan rentang tanggal untuk user biasa
                 reviews, total_reviews = Review.get_filtered_hotel_reviews_by_date(
                     current_user.hotel_unit, start_date, end_date, page
                 )
@@ -111,7 +132,6 @@ def init_routes(app):
                     current_user.hotel_unit, start_date, end_date
                 )
             else:
-                # Tanpa filter tanggal
                 reviews, total_reviews = Review.get_hotel_reviews_paginated(current_user.hotel_unit, page)
                 sentiment_distribution = Review.get_hotel_sentiment_distribution(current_user.hotel_unit)
                 rating_distribution = Review.get_hotel_rating_distribution(current_user.hotel_unit)
@@ -129,21 +149,25 @@ def init_routes(app):
             return jsonify({
                 'reviews_html': render_template('partials/review_rows.html', reviews=reviews),
                 'pagination_html': render_template('partials/pagination.html', 
-                                                    current_page=page, 
-                                                    total_pages=total_pages),
-                'showing_info': f"Showing {len(reviews)} out of {total_reviews} reviews"
+                                                current_page=page, 
+                                                total_pages=total_pages),
+                'showing_info': f"Showing {len(reviews)} out of {total_reviews} reviews",
+                'sentiment_data': sentiment_distribution,
+                'rating_data': rating_distribution
             })
 
-        # Kirimkan data ke template dengan memastikan semua data terdefinisi
+        # Render template dengan semua data yang diperlukan
         return render_template('dashboard.html', 
-                                reviews=reviews, 
-                                current_page=page, 
-                                total_reviews=total_reviews, 
-                                total_pages=total_pages,
-                                sentiment_distribution_keys=sentiment_distribution_keys,
-                                sentiment_distribution_values=sentiment_distribution_values,
-                                rating_distribution_keys=rating_distribution_keys,
-                                rating_distribution_values=rating_distribution_values)
+                            hotels=hotels,  # Tambahkan ini
+                            selected_hotel_id=selected_hotel_id,  # Tambahkan ini
+                            reviews=reviews, 
+                            current_page=page, 
+                            total_reviews=total_reviews, 
+                            total_pages=total_pages,
+                            sentiment_distribution_keys=sentiment_distribution_keys,
+                            sentiment_distribution_values=sentiment_distribution_values,
+                            rating_distribution_keys=rating_distribution_keys,
+                            rating_distribution_values=rating_distribution_values)
 
         
     @app.route('/add_hotel', methods=['GET', 'POST'])
@@ -404,11 +428,33 @@ def init_routes(app):
     @app.route('/reviews')
     @login_required
     def reviews():
+        page = request.args.get('page', default=1, type=int)
+        per_page = 20
+
         if current_user.role == 'admin':
-            reviews = Review.get_all_reviews()
+            reviews, total_reviews = Review.get_paginated_reviews(page, per_page)
         else:
-            reviews = Review.get_hotel_reviews(current_user.hotel_unit)
-        return render_template('reviews.html', reviews=reviews)
+            reviews, total_reviews = Review.get_hotel_reviews_paginated(current_user.hotel_unit, page, per_page)
+
+        total_pages = (total_reviews + per_page - 1) // per_page
+
+        # Handle AJAX request
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            reviews_html = render_template('partials/reviews_table.html', 
+                                        reviews=reviews)
+            pagination_html = render_template('partials/pagination.html',
+                                            current_page=page,
+                                            total_pages=total_pages)
+            return jsonify({
+                'reviews_html': reviews_html,
+                'pagination_html': pagination_html
+            })
+
+        return render_template('reviews.html', 
+                            reviews=reviews,
+                            total_reviews=total_reviews,
+                            current_page=page,
+                            total_pages=total_pages)
 
     @app.route('/update_sentiment', methods=['POST'])
     @login_required

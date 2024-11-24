@@ -10,42 +10,55 @@
         </div>
     </div>
 </div>
+
 <div class="page-body">
     <div class="container-xl">
         <div class="card">
-            <div class="card-body">
-                <div class="table-responsive">
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
                     <table class="table card-table table-vcenter">
                         <thead style="position: sticky; top: 0; background: white; z-index: 1;">
-                          <tr>
-                            <th>Guest Name</th>
-                            <th>Rating</th>
-                            <th>Date</th>
-                            <th>Review</th>
-                            <th>Sentiment</th>
-                          </tr>
+                            <tr>
+                                <th>Guest Name</th>
+                                <th>Rating</th>
+                                <th>Date</th>
+                                <th>Review</th>
+                                <th>Sentiment</th>
+                            </tr>
                         </thead>
                         <tbody id="review-body">
-                          {% for review in reviews %}
-                          <tr>
-                            <td>{{ review[2] }}</td>
-                            <td>{{ review[3] }}</td>
-                            <td>{{ review[4] }}</td>
-                            <td>{{ review[5] }}</td>
-                            <td>
-                              {% if review[6] %}
-                              <span class="badge bg-{{ 'success' if review[6] == 'positive' else 'danger' }}">
-                                {{ review[6] }}
-                              </span>
-                              {% else %}
-                              <span class="badge bg-secondary">Unlabeled</span>
-                              {% endif %}
-                            </td>
-                          </tr>
-                          {% endfor %}
+                            {% for review in reviews %}
+                            <tr>
+                                <td>{{ review[2] }}</td>
+                                <td>{{ review[3] }}</td>
+                                <td>{{ review[4] }}</td>
+                                <td>{{ review[5] }}</td>
+                                <td>
+                                    {% if review[6] %}
+                                    <span class="badge bg-{{ 'success' if review[6] == 'positive' else 'danger' }}">
+                                        {{ review[6] }}
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Unlabeled</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
                         </tbody>
-                      </table>
+                    </table>
                 </div>
+            </div>
+
+            <!-- Pagination Controls -->
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <div>
+                    Showing {{ reviews|length }} out of {{ total_reviews }} reviews
+                </div>
+                <nav id="pagination-container">
+                    <ul class="pagination mb-0">
+                        {% include 'partials/pagination.html' %}
+                    </ul>
+                </nav>
             </div>
         </div>
     </div>
@@ -53,35 +66,68 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-document.querySelectorAll('.save-sentiment').forEach(button => {
-    button.addEventListener('click', async function() {
-        const reviewId = this.dataset.reviewId;
-        const sentiment = document.querySelector(`select[data-review-id="${reviewId}"]`).value;
-        
-        try {
-            const response = await fetch('/update_sentiment', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    review_id: reviewId,
-                    sentiment: sentiment
-                })
-            });
+    // Script untuk update sentiment tetap sama seperti sebelumnya
+    document.querySelectorAll('.save-sentiment').forEach(button => {
+        button.addEventListener('click', async function() {
+            const reviewId = this.dataset.reviewId;
+            const sentiment = document.querySelector(`select[data-review-id="${reviewId}"]`).value;
             
-            if (response.ok) {
-                alert('Sentiment updated successfully');
-                location.reload();
-            } else {
+            try {
+                const response = await fetch('/update_sentiment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        review_id: reviewId,
+                        sentiment: sentiment
+                    })
+                });
+                
+                if (response.ok) {
+                    alert('Sentiment updated successfully');
+                    location.reload();
+                } else {
+                    alert('Error updating sentiment');
+                }
+            } catch (error) {
+                console.error('Error:', error);
                 alert('Error updating sentiment');
             }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Error updating sentiment');
+        });
+    });
+    
+    // Tambahkan fungsi untuk handle pagination
+    function reloadData(page = 1) {
+        $.ajax({
+            url: '{{ url_for("reviews") }}',
+            type: 'GET',
+            data: {
+                page: page
+            },
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            success: function(response) {
+                $("#review-body").html(response.reviews_html);
+                $("#pagination-container ul").html(response.pagination_html);
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading data:", error);
+                alert("Failed to load data. Please try again.");
+            }
+        });
+    }
+    
+    // Event handler untuk pagination
+    $(document).on("click", ".page-link", function(e) {
+        e.preventDefault();
+        const page = $(this).data("page");
+        if (page && !$(this).parent().hasClass('disabled')) {
+            reloadData(page);
         }
     });
-});
-</script>
+    </script>
 {% endblock %}
