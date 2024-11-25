@@ -336,7 +336,6 @@ def init_routes(app):
 
 
     @app.route('/upload', methods=['GET', 'POST'])
-    @app.route('/upload', methods=['GET', 'POST'])
     @login_required
     def upload():
         if request.method == 'POST':
@@ -429,31 +428,29 @@ def init_routes(app):
     @login_required
     def reviews():
         page = request.args.get('page', default=1, type=int)
-        per_page = 20
-
-        if current_user.role == 'admin':
-            reviews, total_reviews = Review.get_paginated_reviews(page, per_page)
-        else:
-            reviews, total_reviews = Review.get_hotel_reviews_paginated(current_user.hotel_unit, page, per_page)
-
+        per_page = 10
+        
+        # Validasi page
+        if page < 1:
+            page = 1
+        
+        # Ambil data ulasan
+        reviews, total_reviews = Review.get_paginated_reviews(page)
         total_pages = (total_reviews + per_page - 1) // per_page
 
-        # Handle AJAX request
+        # AJAX Response
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            reviews_html = render_template('partials/reviews_table.html', 
-                                        reviews=reviews)
-            pagination_html = render_template('partials/pagination.html',
-                                            current_page=page,
-                                            total_pages=total_pages)
             return jsonify({
-                'reviews_html': reviews_html,
-                'pagination_html': pagination_html
+                'reviews_html': render_template('partials/review_rows.html', reviews=reviews),
+                'pagination_html': render_template('partials/pagination.html', 
+                                                current_page=page, 
+                                                total_pages=total_pages)
             })
 
+        # Render `reviews.html` untuk permintaan normal
         return render_template('reviews.html', 
-                            reviews=reviews,
-                            total_reviews=total_reviews,
-                            current_page=page,
+                            reviews=reviews, 
+                            current_page=page, 
                             total_pages=total_pages)
 
     @app.route('/update_sentiment', methods=['POST'])

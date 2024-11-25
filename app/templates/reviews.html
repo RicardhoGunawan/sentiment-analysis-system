@@ -19,6 +19,7 @@
                     <table class="table card-table table-vcenter">
                         <thead style="position: sticky; top: 0; background: white; z-index: 1;">
                             <tr>
+                                <th>Hotel Unit</th>
                                 <th>Guest Name</th>
                                 <th>Rating</th>
                                 <th>Date</th>
@@ -29,6 +30,7 @@
                         <tbody id="review-body">
                             {% for review in reviews %}
                             <tr>
+                                <td>{{ review[1] }}</td>
                                 <td>{{ review[2] }}</td>
                                 <td>{{ review[3] }}</td>
                                 <td>{{ review[4] }}</td>
@@ -68,51 +70,17 @@
 {% block scripts %}
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-    // Script untuk update sentiment tetap sama seperti sebelumnya
-    document.querySelectorAll('.save-sentiment').forEach(button => {
-        button.addEventListener('click', async function() {
-            const reviewId = this.dataset.reviewId;
-            const sentiment = document.querySelector(`select[data-review-id="${reviewId}"]`).value;
-            
-            try {
-                const response = await fetch('/update_sentiment', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        review_id: reviewId,
-                        sentiment: sentiment
-                    })
-                });
-                
-                if (response.ok) {
-                    alert('Sentiment updated successfully');
-                    location.reload();
-                } else {
-                    alert('Error updating sentiment');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Error updating sentiment');
-            }
-        });
-    });
-    
-    // Tambahkan fungsi untuk handle pagination
     function reloadData(page = 1) {
         $.ajax({
             url: '{{ url_for("reviews") }}',
             type: 'GET',
-            data: {
-                page: page
-            },
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            },
+            data: { page: page },
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
             success: function(response) {
                 $("#review-body").html(response.reviews_html);
                 $("#pagination-container ul").html(response.pagination_html);
+                $(".card-footer div:first").html(response.showing_info);
+                history.pushState({}, '', `{{ url_for("reviews") }}?page=${page}`);
             },
             error: function(xhr, status, error) {
                 console.error("Error loading data:", error);
@@ -120,8 +88,7 @@
             }
         });
     }
-    
-    // Event handler untuk pagination
+
     $(document).on("click", ".page-link", function(e) {
         e.preventDefault();
         const page = $(this).data("page");
@@ -129,5 +96,9 @@
             reloadData(page);
         }
     });
-    </script>
+
+    $(document).ready(function() {
+        console.log("Page loaded, pagination handlers attached");
+    });
+</script>
 {% endblock %}
