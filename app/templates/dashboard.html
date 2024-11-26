@@ -37,6 +37,80 @@
       </div>
       {% endif %}
 
+      <!-- Sentiment Overview -->
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <div class="card">
+            <div class="card-body">
+              <div class="d-flex align-items-center">
+                <div class="col">
+                  <div class="subheader text-muted font-weight-normal mb-2">Positive Reviews</div>
+                  <div class="h1" id="positive-total">{{ sentiment_distribution.get('positive', 0) }}</div>
+                </div>
+                <div class="col-auto">
+                  <div class="stats-icon green">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-mood-smile" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                      <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"></path>
+                      <path d="M9 10l.01 0"></path>
+                      <path d="M15 10l.01 0"></path>
+                      <path d="M9.5 15a3.5 3.5 0 0 0 5 0"></path>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card">
+            <div class="card-body">
+              <div class="d-flex align-items-center">
+                <div class="col">
+                  <div class="subheader text-muted font-weight-normal mb-2">Negative Reviews</div>
+                  <div class="h1" id="negative-total">{{ sentiment_distribution.get('negative', 0) }}</div>
+                </div>
+                <div class="col-auto">
+                  <div class="stats-icon red">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-mood-sad" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                      <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"></path>
+                      <path d="M9 10l.01 0"></path>
+                      <path d="M15 10l.01 0"></path>
+                      <path d="M9.5 15.25a3.5 3.5 0 0 1 5 0">
+                    </path>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card">
+            <div class="card-body">
+              <div class="d-flex align-items-center">
+                <div class="col">
+                  <div class="subheader text-muted font-weight-normal mb-2">Neutral Reviews</div>
+                  <div class="h1" id="neutral-total">{{ sentiment_distribution.get('neutral', 0) }}</div>
+                </div>
+                <div class="col-auto">
+                  <div class="stats-icon gray">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-mood-neutral" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                      <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"></path>
+                      <path d="M9 10l.01 0"></path>
+                      <path d="M15 10l.01 0"></path>
+                      <path d="M9 15l6 0"></path>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Charts Row -->
       <div class="col-md-6">
         <div class="card">
@@ -145,24 +219,22 @@
 
 <!-- Include jQuery -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>  <!-- Add Chart.js -->
-
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Add Chart.js -->
 
 <script>
   $(document).ready(function() {
     let sentimentChart, ratingChart;
 
-    // Fungsi untuk mendapatkan warna berdasarkan sentiment dengan urutan tetap
+    // Function to get colors based on sentiment
     function getChartColors(data) {
         const colors = [];
-        // Pastikan urutan warna sesuai dengan label
         Object.keys(data).forEach(label => {
             if (label.toLowerCase() === 'positive') {
-                colors.push('#28a745'); // Hijau untuk positive
+                colors.push('#28a745'); // Green for positive
             } else if (label.toLowerCase() === 'negative') {
-                colors.push('#dc3545'); // Merah untuk negative
+                colors.push('#dc3545'); // Red for negative
             } else {
-                colors.push('#6c757d'); // Abu-abu untuk lainnya
+                colors.push('#6c757d'); // Gray for others
             }
         });
         return colors;
@@ -259,9 +331,7 @@
     function updateCharts(response) {
         // Update Sentiment Chart
         if (sentimentChart && response.sentiment_data) {
-            // Urutkan data sentiment untuk konsistensi
             const sortedLabels = Object.keys(response.sentiment_data).sort((a, b) => {
-                // Pastikan positive selalu pertama
                 if (a.toLowerCase() === 'positive') return -1;
                 if (b.toLowerCase() === 'positive') return 1;
                 return a.localeCompare(b);
@@ -286,12 +356,25 @@
             ratingChart.data.datasets[0].data = ratingValues;
             ratingChart.update();
         }
+
+        // Update Sentiment Counts
+        if (response.sentiment_data) {
+            const sentimentDistribution = response.sentiment_data;
+            const positive = sentimentDistribution['Positive'] || 0;
+            const negative = sentimentDistribution['Negative'] || 0;
+            const neutral = sentimentDistribution['Neutral'] || 0;
+    
+            $('#positive-total').text(positive);
+            $('#negative-total').text(negative);
+            $('#neutral-total').text(neutral);
+        }
     }
 
-      function reloadData(page = 1) {
+    function reloadData(page = 1) {
         const selectedHotel = $('#hotel-select').val();
         const startDate = $('#start-date').val();
         const endDate = $('#end-date').val();
+        
         
         $.ajax({
             url: '{{ url_for("dashboard") }}',
@@ -315,7 +398,7 @@
                 alert("Failed to load data. Please try again.");
             }
         });
-      }
+    }
 
     // Initialize charts on page load
     initializeCharts();

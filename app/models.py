@@ -128,7 +128,7 @@ class Review:
             cur.execute('SELECT 1 FROM reviews WHERE review_text = %s', (review_text,))
             return cur.fetchone() is not None
 
-    @staticmethod
+    
     @staticmethod
     def add_review(hotel_unit: str, guest_name: str, rating: int, review_date: str, review_text: str, sentiment_label: str) -> bool:
         # Validasi: Rating harus ada dan dalam rentang 1-10
@@ -187,24 +187,41 @@ class Review:
         """Menghitung distribusi sentimen untuk semua review."""
         with mysql.connection.cursor() as cur:
             cur.execute('''
-                SELECT sentiment_label, COUNT(*) as count 
+                SELECT 
+                    CASE 
+                        WHEN sentiment_label IS NULL THEN 'Neutral'
+                        ELSE sentiment_label 
+                    END AS sentiment, 
+                    COUNT(*) as count 
                 FROM reviews 
-                WHERE sentiment_label IS NOT NULL 
-                GROUP BY sentiment_label
+                GROUP BY sentiment
             ''')
-            return dict(cur.fetchall())
+            result = cur.fetchall()
+            
+            # Konversi ke dictionary dengan key 'Positive', 'Negative', 'Neutral'
+            sentiment_dict = {}
+            for sentiment, count in result:
+                sentiment_dict[sentiment.capitalize()] = count
+            
+            return sentiment_dict
 
     @staticmethod
     def get_hotel_sentiment_distribution(hotel_unit: str):
-        """Menghitung distribusi sentimen untuk unit hotel tertentu."""
+        """Mengambil distribusi sentimen untuk hotel tertentu tanpa filter tanggal."""
         with mysql.connection.cursor() as cur:
             cur.execute('''
                 SELECT sentiment_label, COUNT(*) as count 
                 FROM reviews 
-                WHERE sentiment_label IS NOT NULL AND hotel_unit = %s 
+                WHERE sentiment_label IS NOT NULL 
+                AND hotel_unit = %s
                 GROUP BY sentiment_label
             ''', (hotel_unit,))
-            return dict(cur.fetchall())
+
+            result = cur.fetchall()
+
+            return dict(result) if result else {"positive": 0, "negative": 0, "neutral": 0}
+
+
 
     @staticmethod
     def get_rating_distribution():
@@ -251,14 +268,34 @@ class Review:
 
     @staticmethod
     def get_filtered_hotel_sentiment_distribution(hotel_unit, start_date, end_date):
+        """
+        Menghitung total sentimen (Positive, Negative, Neutral) untuk hotel tertentu berdasarkan tanggal.
+        """
         with mysql.connection.cursor() as cur:
             cur.execute('''
-                SELECT sentiment_label, COUNT(*) as count 
+                SELECT 
+                    CASE 
+                        WHEN sentiment_label IS NULL THEN 'Neutral'
+                        ELSE sentiment_label 
+                    END AS sentiment, 
+                    COUNT(*) as count 
                 FROM reviews 
-                WHERE hotel_unit = %s AND review_date BETWEEN %s AND %s AND sentiment_label IS NOT NULL
-                GROUP BY sentiment_label
+                WHERE hotel_unit = %s AND review_date BETWEEN %s AND %s
+                GROUP BY sentiment
             ''', (hotel_unit, start_date, end_date))
-            return dict(cur.fetchall())
+            result = cur.fetchall()
+
+            # Konversi hasil ke dictionary dengan key default
+            sentiment_dict = {
+                'Positive': 0,
+                'Negative': 0,
+                'Neutral': 0,
+            }
+            for sentiment, count in result:
+                sentiment_dict[sentiment.capitalize()] = count
+
+            return sentiment_dict
+
 
     @staticmethod
     def get_filtered_hotel_rating_distribution(hotel_unit, start_date, end_date):

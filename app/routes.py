@@ -67,7 +67,7 @@ def init_routes(app):
         per_page = 10
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
-        selected_hotel_id = request.args.get('hotel_id', type=int)  # Tambahkan ini
+        selected_hotel_id = request.args.get('hotel_id', type=int)
 
         # Validasi nilai `page`
         if page < 1:
@@ -86,16 +86,19 @@ def init_routes(app):
         if start_date and end_date and start_date > end_date:
             start_date, end_date = None, None
 
-        # Get list of hotels for admin
+        sentiment_distribution = Review.get_overall_sentiment_distribution()
         hotels = []
-        if current_user.role == 'admin':
-            hotels = Hotel.get_all_hotels()  # Tambahkan method ini ke models
 
-        # Validasi level akses pengguna dan filter data berdasarkan role
+        if current_user.role == 'admin':
+            hotels = Hotel.get_all_hotels()
+
+      # Ambil data berdasarkan role pengguna
+        # Ambil data berdasarkan role pengguna
         if current_user.role == 'admin':
             if selected_hotel_id:
-                # Jika admin memilih hotel specific
+                # Jika admin memilih hotel tertentu
                 if start_date or end_date:
+                    # Dengan filter tanggal
                     reviews, total_reviews = Review.get_filtered_hotel_reviews_by_date(
                         selected_hotel_id, start_date, end_date, page
                     )
@@ -106,22 +109,26 @@ def init_routes(app):
                         selected_hotel_id, start_date, end_date
                     )
                 else:
+                    # Tanpa filter tanggal, tampilkan total keseluruhan sentimen
                     reviews, total_reviews = Review.get_hotel_reviews_paginated(selected_hotel_id, page)
                     sentiment_distribution = Review.get_hotel_sentiment_distribution(selected_hotel_id)
                     rating_distribution = Review.get_hotel_rating_distribution(selected_hotel_id)
             else:
-                # Jika admin melihat semua hotel
+                # Jika admin tidak memilih hotel tertentu
                 if start_date or end_date:
+                    # Dengan filter tanggal
                     reviews, total_reviews = Review.get_filtered_reviews_by_date(start_date, end_date, page)
                     sentiment_distribution = Review.get_filtered_sentiment_distribution(start_date, end_date)
                     rating_distribution = Review.get_filtered_rating_distribution(start_date, end_date)
                 else:
+                    # Tanpa filter tanggal
                     reviews, total_reviews = Review.get_paginated_reviews(page)
                     sentiment_distribution = Review.get_overall_sentiment_distribution()
                     rating_distribution = Review.get_rating_distribution()
         else:
-            # Logic untuk user biasa tetap sama
+            # Jika role adalah user biasa
             if start_date or end_date:
+                # Dengan filter tanggal
                 reviews, total_reviews = Review.get_filtered_hotel_reviews_by_date(
                     current_user.hotel_unit, start_date, end_date, page
                 )
@@ -132,9 +139,16 @@ def init_routes(app):
                     current_user.hotel_unit, start_date, end_date
                 )
             else:
+                # Tanpa filter tanggal
                 reviews, total_reviews = Review.get_hotel_reviews_paginated(current_user.hotel_unit, page)
                 sentiment_distribution = Review.get_hotel_sentiment_distribution(current_user.hotel_unit)
                 rating_distribution = Review.get_hotel_rating_distribution(current_user.hotel_unit)
+
+
+
+
+        # Debug: Log nilai distribusi sentimen
+        logging.debug(f'Sentiment Distribution: {sentiment_distribution}')
 
         # Pastikan distribusi tidak kosong
         sentiment_distribution_keys = list(sentiment_distribution.keys()) if sentiment_distribution else []
@@ -148,9 +162,7 @@ def init_routes(app):
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
                 'reviews_html': render_template('partials/review_rows.html', reviews=reviews),
-                'pagination_html': render_template('partials/pagination.html', 
-                                                current_page=page, 
-                                                total_pages=total_pages),
+                'pagination_html': render_template('partials/pagination.html', current_page=page, total_pages=total_pages),
                 'showing_info': f"Showing {len(reviews)} out of {total_reviews} reviews",
                 'sentiment_data': sentiment_distribution,
                 'rating_data': rating_distribution
@@ -158,14 +170,15 @@ def init_routes(app):
 
         # Render template dengan semua data yang diperlukan
         return render_template('dashboard.html', 
-                            hotels=hotels,  # Tambahkan ini
-                            selected_hotel_id=selected_hotel_id,  # Tambahkan ini
+                            hotels=hotels,  
+                            selected_hotel_id=selected_hotel_id,  
                             reviews=reviews, 
                             current_page=page, 
                             total_reviews=total_reviews, 
                             total_pages=total_pages,
                             sentiment_distribution_keys=sentiment_distribution_keys,
                             sentiment_distribution_values=sentiment_distribution_values,
+                            sentiment_distribution=sentiment_distribution,
                             rating_distribution_keys=rating_distribution_keys,
                             rating_distribution_values=rating_distribution_values)
 
