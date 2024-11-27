@@ -11,6 +11,10 @@ from sklearn.model_selection import train_test_split
 import pickle
 import os
 from bs4 import BeautifulSoup
+import matplotlib.pyplot as plt
+from wordcloud import WordCloud
+import base64
+import io
 import string
 import logging
 
@@ -119,6 +123,50 @@ class SentimentAnalyzer:
         tokens = [self.stemmer.stem(token) for token in tokens]
 
         return ' '.join(tokens)
+    
+    def create_wordcloud(self, texts, output_path='wordcloud.png'):
+        """Membuat word cloud dari teks yang diberikan."""
+        # Menggabungkan semua teks menjadi satu string
+        all_text = ' '.join(texts)
+        
+        # Preprocessing
+        all_text = self.preprocess_text(all_text)
+
+        # Membuat WordCloud
+        wordcloud = WordCloud(
+            width=800, 
+            height=400, 
+            background_color='white', 
+            stopwords=self.stop_words,
+            colormap='viridis'
+        ).generate(all_text)
+
+        # Simpan WordCloud ke file
+        wordcloud.to_file(output_path)
+        logging.info(f"WordCloud saved to {output_path}")
+
+        # Return image path
+        return output_path
+
+    def create_wordcloud_base64(self, texts):
+        """Membuat *Word Cloud* dan mengembalikannya dalam format base64 untuk dashboard."""
+        all_text = ' '.join(texts)
+        all_text = self.preprocess_text(all_text)
+
+        wordcloud = WordCloud(
+            width=800, 
+            height=400, 
+            background_color='white', 
+            stopwords=self.stop_words,
+            colormap='viridis'
+        ).generate(all_text)
+
+        # Konversi ke base64
+        img_buffer = io.BytesIO()
+        wordcloud.to_image().save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+        base64_image = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+        return base64_image
 
     def get_sentiment_label(self, text):
         """Determine sentiment label using custom Indonesian sentiment dictionary."""

@@ -133,6 +133,42 @@
           </div>
         </div>
       </div>
+      <!-- Word Cloud Card -->
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Word Cloud Visualization</h3>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <!-- Positive Word Cloud -->
+              <div class="col-md-6 text-center">
+                <h5>Positive Word Cloud</h5>
+                {% if positive_wordcloud_image %}
+                  <img 
+                    src="data:image/png;base64,{{ positive_wordcloud_image }}" 
+                    alt="Positive Word Cloud">
+                {% else %}
+                  <p>No positive reviews available to generate Word Cloud.</p>
+                {% endif %}
+              </div>
+              <!-- Negative Word Cloud -->
+              <div class="col-md-6 text-center">
+                <h5>Negative Word Cloud</h5>
+                {% if negative_wordcloud_image %}
+                  <img 
+                    src="data:image/png;base64,{{ negative_wordcloud_image }}" 
+                    alt="Negative Word Cloud">
+                {% else %}
+                  <p>No negative reviews available to generate Word Cloud.</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      
 
       <!-- Latest Reviews with Scrollbar -->
       <div class="col-12">

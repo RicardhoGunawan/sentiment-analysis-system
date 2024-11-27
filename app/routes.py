@@ -157,6 +157,29 @@ def init_routes(app):
         rating_distribution_values = list(rating_distribution.values()) if rating_distribution else []
 
         total_pages = (total_reviews + per_page - 1) // per_page
+        
+       # Inisialisasi SentimentAnalyzer
+        analyzer = SentimentAnalyzer()  # Pastikan path file kamus benar
+
+        # Pisahkan ulasan berdasarkan sentimen
+        positive_reviews = []
+        negative_reviews = []
+
+        if reviews:
+            for review in reviews:
+                sentiment = analyzer.get_sentiment_label(review[5])  # Asumsikan review[5] adalah teks ulasan
+                if sentiment == "positive":
+                    positive_reviews.append(review[5])
+                elif sentiment == "negative":
+                    negative_reviews.append(review[5])
+
+        # Buat WordCloud untuk ulasan positif dan negatif
+        positive_wordcloud_base64 = (
+            analyzer.create_wordcloud_base64(positive_reviews) if positive_reviews else None
+        )
+        negative_wordcloud_base64 = (
+            analyzer.create_wordcloud_base64(negative_reviews) if negative_reviews else None
+        )
 
         # Periksa apakah permintaan adalah AJAX
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -180,7 +203,11 @@ def init_routes(app):
                             sentiment_distribution_values=sentiment_distribution_values,
                             sentiment_distribution=sentiment_distribution,
                             rating_distribution_keys=rating_distribution_keys,
-                            rating_distribution_values=rating_distribution_values)
+                            rating_distribution_values=rating_distribution_values,
+                            positive_wordcloud_image=positive_wordcloud_base64,  # WordCloud positif
+                            negative_wordcloud_image=negative_wordcloud_base64,
+                            )
+        
 
         
     @app.route('/add_hotel', methods=['GET', 'POST'])
