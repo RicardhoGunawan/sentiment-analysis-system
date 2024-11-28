@@ -242,6 +242,41 @@ class Review:
         return reviews, total_reviews
     
     @staticmethod
+    def get_paginated_reviews_by_hotel(hotel_id, page, per_page=10):
+        offset = (page - 1) * per_page
+        cursor = mysql.connection.cursor()
+        
+        # Query to get reviews for a specific hotel
+        cursor.execute("""
+            SELECT 
+                r.id, 
+                h.name AS hotel_name, 
+                r.guest_name, 
+                r.rating, 
+                r.review_date,  
+                r.review_text, 
+                r.sentiment_label  
+            FROM 
+                reviews r
+            JOIN 
+                hotels h ON r.hotel_unit = h.id
+            WHERE 
+                r.hotel_unit = %s
+            ORDER BY 
+                r.review_date DESC
+            LIMIT %s OFFSET %s
+        """, (hotel_id, per_page, offset))
+        
+        reviews = cursor.fetchall()
+        
+        # Count total reviews for this hotel
+        cursor.execute("SELECT COUNT(*) FROM reviews WHERE hotel_unit = %s", (hotel_id,))
+        total_reviews = cursor.fetchone()[0]
+        
+        cursor.close()
+        return reviews, total_reviews
+    
+    @staticmethod
     def get_overall_sentiment_distribution():
         """Menghitung distribusi sentimen untuk semua review."""
         with mysql.connection.cursor() as cur:

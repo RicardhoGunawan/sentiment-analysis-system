@@ -12,9 +12,21 @@
                     <i class="ti ti-trash me-1"></i>Delete Selected Reviews
                 </button>
             </div>
+            <!-- Admin Hotel Selection -->
+            {% if current_user.role == 'admin' %}
+                <div class="col-auto">
+                    <select id="hotel-select" class="form-select">
+                        <option value="">All Hotels</option>
+                        {% for hotel in hotels %}
+                        <option value="{{ hotel[0] }}">{{ hotel[1] }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            {% endif %}
         </div>
     </div>
 </div>
+
 
 <div class="page-body">
     <div class="container-xl">
@@ -83,11 +95,18 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
     // Function to reload data for pagination
+   // Update the reloadData function to include hotel selection
+// Function to reload data for pagination
     function reloadData(page = 1) {
+        const hotelId = $("#hotel-select").val() || '';
+        
         $.ajax({
             url: '{{ url_for("reviews") }}',
             type: 'GET',
-            data: { page: page },
+            data: { 
+                page: page,
+                hotel_id: hotelId 
+            },
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
             dataType: 'json',
             success: function(response) {
@@ -113,6 +132,10 @@
         });
     }
 
+    // Event listener untuk dropdown hotel
+    $("#hotel-select").change(function() {
+        reloadData(1); // Reload data when hotel is selected
+    });
     // Function to reset checkboxes
     function resetCheckboxes() {
         $("#select-all-checkbox").prop('checked', false);
