@@ -206,6 +206,7 @@ def init_routes(app):
                             rating_distribution_values=rating_distribution_values,
                             positive_wordcloud_image=positive_wordcloud_base64,  # WordCloud positif
                             negative_wordcloud_image=negative_wordcloud_base64,
+                            loading=True,
                             )
         
 
@@ -470,28 +471,65 @@ def init_routes(app):
         page = request.args.get('page', default=1, type=int)
         per_page = 10
         
-        # Validasi page
-        if page < 1:
-            page = 1
+        if current_user.role != 'admin':
+            reviews, total_reviews = Review.get_hotel_reviews_paginated(current_user.hotel_unit, page)
+        else:
+            reviews, total_reviews = Review.get_paginated_reviews(page)
         
-        # Ambil data ulasan
-        reviews, total_reviews = Review.get_paginated_reviews(page)
         total_pages = (total_reviews + per_page - 1) // per_page
 
-        # AJAX Response
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
+                'status': 'success',
                 'reviews_html': render_template('partials/review_rows.html', reviews=reviews),
                 'pagination_html': render_template('partials/pagination.html', 
                                                 current_page=page, 
-                                                total_pages=total_pages)
+                                                total_pages=total_pages),
+                'showing_info': f"{len(reviews)} out of {total_reviews} reviews"
             })
 
-        # Render `reviews.html` untuk permintaan normal
         return render_template('reviews.html', 
-                            reviews=reviews, 
+                            reviews=reviews,
+                            total_reviews=total_reviews,
                             current_page=page, 
                             total_pages=total_pages)
+    
+    @app.route('/delete-reviews', methods=['POST'])
+    @login_required
+    def delete_reviews():
+        try:
+            # Ambil list ID review dari request
+            review_ids = request.json.get('review_ids', [])
+            
+            if not review_ids:
+                return jsonify({
+                    'status': 'error', 
+                    'message': 'No review IDs provided'
+                }), 400
+            
+            # Jika bukan admin, hanya bisa menghapus review di hotel unitnya sendiri
+            if current_user.role != 'admin':
+                reviews_to_delete = Review.get_hotel_reviews(current_user.hotel_unit)
+                reviews_to_delete_ids = [review[0] for review in reviews_to_delete]  # Ambil ID review yang bisa dihapus
+                review_ids = [rid for rid in review_ids if rid in reviews_to_delete_ids]  # Filter ID yang valid
+            
+            # Hapus review
+            deleted_count = 0
+            for review_id in review_ids:
+                if Review.delete_review(review_id):  # Pastikan ada metode delete_review di model
+                    deleted_count += 1
+            
+            return jsonify({
+                'status': 'success', 
+                'deleted_count': deleted_count
+            }), 200
+        
+        except Exception as e:
+            logging.error(f"Error deleting reviews: {e}")
+            return jsonify({
+                'status': 'error', 
+                'message': str(e)
+            }), 500
 
     @app.route('/update_sentiment', methods=['POST'])
     @login_required

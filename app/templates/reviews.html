@@ -7,6 +7,11 @@
             <div class="col">
                 <h2 class="page-title">Reviews Sentiment</h2>
             </div>
+            <div class="col-auto ms-auto">
+                <button id="delete-selected-btn" class="btn btn-danger d-none" disabled>
+                    <i class="ti ti-trash me-1"></i>Delete Selected Reviews
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -19,6 +24,9 @@
                     <table class="table card-table table-vcenter">
                         <thead style="position: sticky; top: 0; background: white; z-index: 1;">
                             <tr>
+                                <th>
+                                    <input type="checkbox" id="select-all-checkbox">
+                                </th>
                                 <th>Hotel Unit</th>
                                 <th>Guest Name</th>
                                 <th>Rating</th>
@@ -30,6 +38,9 @@
                         <tbody id="review-body">
                             {% for review in reviews %}
                             <tr>
+                                <td>
+                                    <input type="checkbox" class="review-checkbox" data-review-id="{{ review[0] }}">
+                                </td>
                                 <td>{{ review[1] }}</td>
                                 <td>{{ review[2] }}</td>
                                 <td>{{ review[3] }}</td>
@@ -69,26 +80,120 @@
 
 {% block scripts %}
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
+    // Function to reload data for pagination
     function reloadData(page = 1) {
         $.ajax({
             url: '{{ url_for("reviews") }}',
             type: 'GET',
             data: { page: page },
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            dataType: 'json',
             success: function(response) {
-                $("#review-body").html(response.reviews_html);
-                $("#pagination-container ul").html(response.pagination_html);
-                $(".card-footer div:first").html(response.showing_info);
-                history.pushState({}, '', `{{ url_for("reviews") }}?page=${page}`);
+                if (response.status === 'success') {
+                    // Update review body
+                    $("#review-body").html(response.reviews_html);
+                    
+                    // Update pagination
+                    $("#pagination-container ul").html(response.pagination_html);
+                    
+                    // Update showing info
+                    $(".card-footer div:first").text(`Showing ${response.showing_info}`);
+                    
+                    // Reset checkboxes dan delete button
+                    resetCheckboxes();
+                    $("#delete-selected-btn").addClass('d-none').prop('disabled', true);
+                }
             },
             error: function(xhr, status, error) {
-                console.error("Error loading data:", error);
-                alert("Failed to load data. Please try again.");
+                console.error("Reload error:", error);
+                Swal.fire('Error!', 'Failed to reload data', 'error');
             }
         });
     }
 
+    // Function to reset checkboxes
+    function resetCheckboxes() {
+        $("#select-all-checkbox").prop('checked', false);
+        $(".review-checkbox").prop('checked', false);
+        updateDeleteButton();
+    }
+
+    // Update delete button visibility
+    function updateDeleteButton() {
+        const selectedCount = $(".review-checkbox:checked").length;
+        const deleteBtn = $("#delete-selected-btn");
+        
+        if (selectedCount > 0) {
+            deleteBtn.removeClass('d-none').prop('disabled', false).text(`Delete (${selectedCount}) Reviews`);
+        } else {
+            deleteBtn.addClass('d-none').prop('disabled', true);
+        }
+    }
+
+    // Event listener untuk checkbox "select all"
+    $("#select-all-checkbox").change(function() {
+        const isChecked = $(this).prop('checked');
+        $(".review-checkbox").prop('checked', isChecked);
+        updateDeleteButton();
+    });
+
+    // Event listener untuk individual checkbox
+    $(document).on('change', '.review-checkbox', function() {
+        const allChecked = $(".review-checkbox").length === $(".review-checkbox:checked").length;
+        $("#select-all-checkbox").prop('checked', allChecked);
+        updateDeleteButton();
+    });
+
+    // Event listener untuk tombol delete review
+    $("#delete-selected-btn").click(function() {
+        const selectedReviewIds = $(".review-checkbox:checked").map(function() {
+            return $(this).data('review-id');
+        }).get();
+    
+        if (selectedReviewIds.length === 0) return;
+    
+        Swal.fire({
+            title: 'Are you sure?',
+            text: `You want to delete ${selectedReviewIds.length} review(s)?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, delete it!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: '{{ url_for("delete_reviews") }}',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ review_ids: selectedReviewIds }),
+                    success: function(response) {
+                        if (response.status === 'success') {
+                            Swal.fire({
+                                title: 'Deleted!',
+                                text: `${response.deleted_count} review(s) have been deleted.`,
+                                icon: 'success',
+                                didClose: () => {
+                                    // Reload ke halaman pertama setelah delete
+                                    reloadData(1);
+                                }
+                            });
+                        } else {
+                            Swal.fire('Error!', response.message, 'error');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error("Delete failed:", error);
+                        Swal.fire('Error!', 'Failed to delete reviews', 'error');
+                    }
+                });
+            }
+        });
+    });
+
+    // Pagination event listener
     $(document).on("click", ".page-link", function(e) {
         e.preventDefault();
         const page = $(this).data("page");
@@ -98,7 +203,7 @@
     });
 
     $(document).ready(function() {
-        console.log("Page loaded, pagination handlers attached");
+        console.log("Page loaded, review management handlers attached");
     });
 </script>
 {% endblock %}

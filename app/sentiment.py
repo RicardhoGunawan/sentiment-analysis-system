@@ -112,7 +112,7 @@ class SentimentAnalyzer:
             'gak': 'tidak', 'nggak': 'tidak', 'ga': 'tidak', 'aja': 'saja',
             'kok': 'tidak', 'dong': '', 'lah': 'sudah', 'memakan': 'makan',
             'kmarin': 'kemarin', 'cocok': 'bagus', 'muas': 'puas',
-            'sarap': 'sarapan', 'alternativ': 'alternatif',
+            'sarap': 'sarapan', 'alternativ': 'alternatif','tibatiba' :'tiba'
         }
         tokens = [normalization_dict.get(token, token) for token in tokens]
 

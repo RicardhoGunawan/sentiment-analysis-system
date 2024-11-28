@@ -108,6 +108,19 @@ class Review:
         with mysql.connection.cursor() as cur:
             cur.execute('SELECT * FROM reviews ORDER BY review_date DESC')
             return cur.fetchall()
+        
+    @staticmethod
+    def delete_review(review_id: int) -> bool:
+        """Menghapus review berdasarkan ID."""
+        with mysql.connection.cursor() as cur:
+            try:
+                cur.execute('DELETE FROM reviews WHERE id = %s', (review_id,))
+                mysql.connection.commit()
+                return True
+            except Exception as e:
+                logging.error(f"Error deleting review ID {review_id}: {e}")
+                mysql.connection.rollback()
+                return False
 
     @staticmethod
     def get_hotel_reviews(hotel_unit: str) -> list:
@@ -164,21 +177,67 @@ class Review:
     def get_paginated_reviews(page, per_page=10):
         offset = (page - 1) * per_page
         cursor = mysql.connection.cursor()
-        cursor.execute("SELECT * FROM reviews LIMIT %s OFFSET %s", (per_page, offset))
+        
+        # Updated query to match your table schema
+        cursor.execute("""
+            SELECT 
+                r.id, 
+                h.name AS hotel_name, 
+                r.guest_name, 
+                r.rating, 
+                r.review_date,  # Correct column name
+                r.review_text, 
+                r.sentiment_label  # Correct sentiment column name
+            FROM 
+                reviews r
+            JOIN 
+                hotels h ON r.hotel_unit = h.id  # Correct join condition
+            ORDER BY 
+                r.review_date DESC
+            LIMIT %s OFFSET %s
+        """, (per_page, offset))
+        
         reviews = cursor.fetchall()
+        
+        # Count total reviews
         cursor.execute("SELECT COUNT(*) FROM reviews")
         total_reviews = cursor.fetchone()[0]
+        
         cursor.close()
-        return reviews, total_reviews  
+        return reviews, total_reviews
 
     @staticmethod
     def get_hotel_reviews_paginated(hotel_unit, page, per_page=10):
         offset = (page - 1) * per_page
         cursor = mysql.connection.cursor()
-        cursor.execute("SELECT * FROM reviews WHERE hotel_unit = %s LIMIT %s OFFSET %s", (hotel_unit, per_page, offset))
+        
+        # Query untuk mendapatkan reviews spesifik untuk hotel unit
+        cursor.execute("""
+            SELECT 
+                r.id, 
+                h.name AS hotel_name, 
+                r.guest_name, 
+                r.rating, 
+                r.review_date,  
+                r.review_text, 
+                r.sentiment_label  
+            FROM 
+                reviews r
+            JOIN 
+                hotels h ON r.hotel_unit = h.id
+            WHERE 
+                r.hotel_unit = %s
+            ORDER BY 
+                r.review_date DESC
+            LIMIT %s OFFSET %s
+        """, (hotel_unit, per_page, offset))
+        
         reviews = cursor.fetchall()
+        
+        # Hitung total reviews untuk hotel unit ini
         cursor.execute("SELECT COUNT(*) FROM reviews WHERE hotel_unit = %s", (hotel_unit,))
         total_reviews = cursor.fetchone()[0]
+        
         cursor.close()
         return reviews, total_reviews
     
