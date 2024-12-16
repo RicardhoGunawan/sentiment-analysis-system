@@ -1,11 +1,17 @@
-from flask import render_template, request, redirect, url_for, flash, jsonify
+from flask import render_template, request, redirect, url_for, flash, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 import os
 import pandas as pd
+from sklearn.metrics import confusion_matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
+import io
+import base64
 from datetime import datetime
 import logging
+from sklearn.model_selection import train_test_split
 from . import mysql, login_manager
 from .models import User, Review, Hotel  
 from .sentiment import SentimentAnalyzer  # Import kelas SentimentAnalyzer
@@ -395,7 +401,7 @@ def init_routes(app):
                 return redirect(request.url)
 
             if file:
-                # Use secure filename and save to static uploads folder
+                # Gunakan secure filename dan simpan ke folder uploads statis
                 filename = secure_filename(file.filename)
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(filepath)
@@ -408,11 +414,11 @@ def init_routes(app):
 
             # Validasi hotel_unit pada setiap baris data
             invalid_hotel_units = df[df['hotel_unit'].str.lower() != current_user_hotel_name]
-            
+
             if not invalid_hotel_units.empty:
                 # Hapus file yang diupload
                 os.remove(filepath)
-                
+
                 # Siapkan pesan error dengan detail hotel_unit yang tidak sesuai
                 invalid_hotels_list = ", ".join(invalid_hotel_units['hotel_unit'].unique())
                 flash(f'Upload gagal. Hotel unit tidak sesuai: {invalid_hotels_list}')
@@ -420,33 +426,73 @@ def init_routes(app):
 
             # Konversi format tanggal
             df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.strftime('%Y-%m-%d')
+
             # Ambil daftar hotel dari database untuk validasi
             with mysql.connection.cursor() as cur:
                 cur.execute('SELECT id, name FROM hotels')
                 hotels_map = {hotel[1].lower(): hotel[0] for hotel in cur.fetchall()}
 
-            # Proses ulasan dan melatih model
-            sentiment_analyzer.train_and_save(df)
+            # Pisahkan ulasan menjadi training dan testing (80%:20%)
+            train_data, test_data = train_test_split(df, test_size=0.2, random_state=42)
+
+            # Simpan ke file untuk digunakan dalam pelatihan model
+            train_data_path = os.path.join(app.config['UPLOAD_FOLDER'], 'train_data.csv')
+            test_data_path = os.path.join(app.config['UPLOAD_FOLDER'], 'test_data.csv')
+
+            train_data.to_csv(train_data_path, index=False)
+            test_data.to_csv(test_data_path, index=False)
+
+            # Lanjutkan proses pelatihan model dengan train_data
+            sentiment_analyzer.train_and_save(train_data)
+
+            # Menambahkan kolom 'sentiment_label' pada test_data jika tidak ada
+            if 'sentiment_label' not in test_data.columns:
+                test_data['sentiment_label'] = test_data['review'].apply(sentiment_analyzer.get_sentiment_label)
+
+            # Gunakan test_data untuk evaluasi model
+            test_accuracy = sentiment_analyzer.evaluate(test_data)
+            logging.info(f"Test accuracy: {test_accuracy}")
+
+            # Ambil prediksi model untuk test_data
+            predictions = test_data['review'].apply(sentiment_analyzer.get_sentiment_label).values
+            true_labels = test_data['sentiment_label'].values
+
+            # Hitung confusion matrix
+            cm = confusion_matrix(true_labels, predictions)
+
+            # Buat plot confusion matrix dengan seaborn
+            plt.figure(figsize=(6, 4))
+            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Negative', 'Positive'], yticklabels=['Negative', 'Positive'])
+            plt.ylabel('True label')
+            plt.xlabel('Predicted label')
+
+            # Simpan confusion matrix sebagai gambar di folder uploads
+            cm_image_path = os.path.join(app.config['UPLOAD_FOLDER'], 'confusion_matrix.png')
+            plt.savefig(cm_image_path, format='png')
+            plt.close()
+
+            # Simpan hasil evaluasi dan confusion matrix ke session
+            session['evaluation_result'] = f"Hasil Evaluasi Model: Akurasi {test_accuracy:.2f}%"
+            session['confusion_matrix'] = cm_image_path
 
             # Simpan review ke database
-            for _, row in df.iterrows():
-                # Validasi nama hotel
+            for _, row in train_data.iterrows():
                 hotel_name = row['hotel_unit'].lower()
                 hotel_id = hotels_map.get(hotel_name)
-                
+
                 if hotel_id is None:
                     logging.warning(f"Hotel not found: {row['hotel_unit']}")
-                    continue  # Lewati entri ini jika hotel tidak ditemukan
+                    continue
 
                 # Ambil kolom review
                 review = row['review'] if pd.notna(row['review']) else ""
                 rating = row['rating'] if pd.notna(row['rating']) else None
-                
+
                 # Validasi rating
                 if rating is not None and (rating < 1 or rating > 10):
                     logging.warning(f"Review skipped due to invalid rating: {rating}")
                     continue
-                
+
                 cleaned_review = sentiment_analyzer.preprocess_text(review)
                 sentiment = sentiment_analyzer.predict([cleaned_review])[0]
 
@@ -459,11 +505,16 @@ def init_routes(app):
                     sentiment
                 )
 
-            os.remove(filepath)  # Bersihkan file yang di-upload
+            # Bersihkan file
+            os.remove(filepath)
+            os.remove(train_data_path)
+            os.remove(test_data_path)
+            
             flash('File uploaded and processed successfully')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('evaluate'))  # Arahkan ke halaman evaluate untuk melihat hasil
 
         return render_template('upload.html')
+
 
     @app.route('/reviews')
     @login_required
@@ -559,3 +610,15 @@ def init_routes(app):
         cur.close()
 
         return jsonify({'success': True})
+    
+    @app.route('/evaluate', methods=['GET'])
+    @login_required
+    def evaluate():
+        # Contoh evaluasi model dari flash atau session
+        evaluation_result = session.get('evaluation_result', None)
+        
+        # Jika hasil evaluasi belum ada, beri pesan default
+        if evaluation_result is None:
+            evaluation_result = 'Model belum dievaluasi.'
+
+        return render_template('evaluate.html', evaluation_result=evaluation_result)
