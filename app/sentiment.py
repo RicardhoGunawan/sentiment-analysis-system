@@ -1,3 +1,4 @@
+from flask import app
 import numpy as np
 import pandas as pd
 import re
@@ -9,6 +10,7 @@ from nltk.tokenize import word_tokenize
 from sklearn.svm import SVC
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
+import seaborn as sns
 from io import BytesIO
 import base64
 from sklearn.model_selection import train_test_split
@@ -17,7 +19,8 @@ import os
 import string
 from bs4 import BeautifulSoup
 import logging
-from sklearn.metrics import accuracy_score
+from app import create_app
+from sklearn.metrics import accuracy_score, confusion_matrix
 
 # Konfigurasi logging
 logging.basicConfig(level=logging.INFO, 
@@ -233,16 +236,33 @@ class SentimentAnalyzer:
         return img_base64
 
     def evaluate(self, test_data):
-        test_data = test_data.fillna('')
+            test_data = test_data.fillna('')
 
-        X_test = test_data['review']
-        y_test = test_data['sentiment_label']
+            X_test = test_data['review']
+            y_test = test_data['sentiment_label']
 
-        X_test_tfidf = self.vectorizer.transform(X_test)
-        y_pred = self.classifier.predict(X_test_tfidf)
+            X_test_tfidf = self.vectorizer.transform(X_test)
+            y_pred = self.classifier.predict(X_test_tfidf)
 
-        accuracy = accuracy_score(y_test, y_pred)
-        return accuracy
+            accuracy = accuracy_score(y_test, y_pred)
+
+            # Hitung confusion matrix
+            cm = confusion_matrix(y_test, y_pred)
+
+            # Buat plot confusion matrix dengan seaborn
+            plt.figure(figsize=(6, 4))
+            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Negative', 'Positive'], yticklabels=['Negative', 'Positive'])
+            plt.ylabel('True label')
+            plt.xlabel('Predicted label')
+
+            # Simpan confusion matrix sebagai gambar di folder uploads
+            # Ubah path untuk menyimpan gambar confusion matrix
+            app = create_app() 
+            cm_image_path = os.path.join(app.config['UPLOAD_FOLDER'], 'confusion_matrix.png')
+            plt.savefig(cm_image_path, format='png')
+            plt.close()
+
+            return accuracy, cm_image_path
 
     def save_model(self, vectorizer_path='vectorizer.pkl', classifier_path='classifier.pkl'):
         try:

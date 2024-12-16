@@ -450,26 +450,8 @@ def init_routes(app):
                 test_data['sentiment_label'] = test_data['review'].apply(sentiment_analyzer.get_sentiment_label)
 
             # Gunakan test_data untuk evaluasi model
-            test_accuracy = sentiment_analyzer.evaluate(test_data)
+            test_accuracy, cm_image_path = sentiment_analyzer.evaluate(test_data)
             logging.info(f"Test accuracy: {test_accuracy}")
-
-            # Ambil prediksi model untuk test_data
-            predictions = test_data['review'].apply(sentiment_analyzer.get_sentiment_label).values
-            true_labels = test_data['sentiment_label'].values
-
-            # Hitung confusion matrix
-            cm = confusion_matrix(true_labels, predictions)
-
-            # Buat plot confusion matrix dengan seaborn
-            plt.figure(figsize=(6, 4))
-            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Negative', 'Positive'], yticklabels=['Negative', 'Positive'])
-            plt.ylabel('True label')
-            plt.xlabel('Predicted label')
-
-            # Simpan confusion matrix sebagai gambar di folder uploads
-            cm_image_path = os.path.join(app.config['UPLOAD_FOLDER'], 'confusion_matrix.png')
-            plt.savefig(cm_image_path, format='png')
-            plt.close()
 
             # Simpan hasil evaluasi dan confusion matrix ke session
             session['evaluation_result'] = f"Hasil Evaluasi Model: Akurasi {test_accuracy:.2f}%"
@@ -509,11 +491,12 @@ def init_routes(app):
             os.remove(filepath)
             os.remove(train_data_path)
             os.remove(test_data_path)
-            
+
             flash('File uploaded and processed successfully')
             return redirect(url_for('evaluate'))  # Arahkan ke halaman evaluate untuk melihat hasil
 
         return render_template('upload.html')
+
 
 
     @app.route('/reviews')
