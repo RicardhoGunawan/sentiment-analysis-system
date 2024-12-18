@@ -60,14 +60,19 @@
                                     <span class="nav-link-title">Reviews</span>
                                 </a>
                             </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('evaluate') }}">
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
                                         <i class="ti ti-chart-line"></i>
                                     </span>
                                     <span class="nav-link-title">Evaluate Model</span>
                                 </a>
+                                <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+                                    <li><a class="dropdown-item" href="{{ url_for('evaluate') }}">Klasifikasi SVM</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('evaluate') }}">Klasifikasi NB</a></li>
+                                </ul>
                             </li>
+                            
                             
                             {% if current_user.role == 'admin' %}
                                 <li class="nav-item">

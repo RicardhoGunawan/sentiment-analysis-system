@@ -20,7 +20,7 @@ import string
 from bs4 import BeautifulSoup
 import logging
 from app import create_app
-from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
 
 # Konfigurasi logging
 logging.basicConfig(level=logging.INFO, 
@@ -32,7 +32,8 @@ nltk.download('stopwords', quiet=True)
 
 class SentimentAnalyzer:
     def __init__(self, positive_words_path='app/static/dictionary_words/positive_words.txt', 
-                 negative_words_path='app/static/dictionary_words/negative_words.txt'):
+                 negative_words_path='app/static/dictionary_words/negative_words.txt',
+                 normalization_file_path='app/static/dictionary_words/normalization.txt'):
         # Gunakan stemmer dari Sastrawi
         factory = StemmerFactory()
         self.stemmer = factory.create_stemmer()
@@ -47,14 +48,19 @@ class SentimentAnalyzer:
         # Path ke file kamus kata positif dan negatif
         self.positive_words_path = positive_words_path
         self.negative_words_path = negative_words_path
+        self.normalization_file_path = normalization_file_path
 
         # Memuat kata-kata positif dan negatif
         self.positive_words = self.load_words_from_file(positive_words_path)
         self.negative_words = self.load_words_from_file(negative_words_path)
 
+        # Memuat kamus normalisasi
+        self.normalization_dict = self.load_normalization_dict(normalization_file_path)
+
         # Logging informasi
         logging.info(f"Positive words loaded: {len(self.positive_words)}")
         logging.info(f"Negative words loaded: {len(self.negative_words)}")
+        logging.info(f"Normalization dictionary loaded: {len(self.normalization_dict)}")
 
     def load_words_from_file(self, file_path):
         """Memuat kata-kata dari file teks ke dalam set."""
@@ -66,6 +72,25 @@ class SentimentAnalyzer:
         except FileNotFoundError:
             logging.error(f"File {file_path} tidak ditemukan.")
             return set()  # Kembalikan set kosong jika file tidak ditemukan
+
+    def load_normalization_dict(self, file_path):
+        """Memuat kamus normalisasi dari file teks ke dalam dictionary."""
+        normalization_dict = {}
+        try:
+            logging.info(f"Loading normalization dictionary from {file_path}")
+            with open(file_path, 'r', encoding='utf-8') as file:
+                for line in file:
+                    line = line.strip()
+                    # Mengabaikan baris kosong atau yang tidak sesuai format
+                    if not line or '\t' not in line:
+                        continue
+                    parts = line.split('\t')  # Gunakan tab sebagai pemisah
+                    if len(parts) == 2:
+                        normalization_dict[parts[0].strip()] = parts[1].strip()
+            logging.info(f"Normalization dictionary loaded: {len(normalization_dict)}")
+        except FileNotFoundError:
+            logging.error(f"File {file_path} tidak ditemukan.")
+        return normalization_dict
 
     def preprocess_text(self, text):
         """Preprocesses input text dengan penanganan NaN."""
@@ -115,13 +140,7 @@ class SentimentAnalyzer:
         tokens = word_tokenize(text)
 
         # Normalization
-        normalization_dict = {
-            'gak': 'tidak', 'nggak': 'tidak', 'ga': 'tidak', 'aja': 'saja',
-            'kok': 'tidak', 'dong': '', 'lah': 'sudah', 'memakan': 'makan',
-            'kmarin': 'kemarin', 'cocok': 'bagus', 'muas': 'puas',
-            'sarap': 'sarapan', 'alternativ': 'alternatif','tibatiba' :'tiba'
-        }
-        tokens = [normalization_dict.get(token, token) for token in tokens]
+        tokens = [self.normalization_dict.get(token, token) for token in tokens]
 
         # Stopwords removal
         tokens = [token for token in tokens if token not in self.stop_words]
@@ -130,6 +149,7 @@ class SentimentAnalyzer:
         tokens = [self.stemmer.stem(token) for token in tokens]
 
         return ' '.join(tokens)
+
     
     def get_sentiment_label(self, text):
         """Determine sentiment label using custom Indonesian sentiment dictionary."""
@@ -235,34 +255,42 @@ class SentimentAnalyzer:
         
         return img_base64
 
-    def evaluate(self, test_data):
-            test_data = test_data.fillna('')
+    def evaluate(self, test_data, hotel_unit):
+        test_data = test_data.fillna('')
 
-            X_test = test_data['review']
-            y_test = test_data['sentiment_label']
+        X_test = test_data['review']
+        y_test = test_data['sentiment_label']
 
-            X_test_tfidf = self.vectorizer.transform(X_test)
-            y_pred = self.classifier.predict(X_test_tfidf)
+        X_test_tfidf = self.vectorizer.transform(X_test)
+        y_pred = self.classifier.predict(X_test_tfidf)
 
-            accuracy = accuracy_score(y_test, y_pred)
+        # Hitung accuracy
+        accuracy = accuracy_score(y_test, y_pred)
 
-            # Hitung confusion matrix
-            cm = confusion_matrix(y_test, y_pred)
+        # Buat classification report
+        report = classification_report(y_test, y_pred, 
+                                    target_names=['Negative', 'Neutral', 'Positive'],
+                                    output_dict=True)
 
-            # Buat plot confusion matrix dengan seaborn
-            plt.figure(figsize=(6, 4))
-            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Negative', 'Positive'], yticklabels=['Negative', 'Positive'])
-            plt.ylabel('True label')
-            plt.xlabel('Predicted label')
+        # Hitung confusion matrix
+        cm = confusion_matrix(y_test, y_pred)
 
-            # Simpan confusion matrix sebagai gambar di folder uploads
-            # Ubah path untuk menyimpan gambar confusion matrix
-            app = create_app() 
-            cm_image_path = os.path.join(app.config['UPLOAD_FOLDER'], 'confusion_matrix.png')
-            plt.savefig(cm_image_path, format='png')
-            plt.close()
+        # Buat plot confusion matrix dengan seaborn
+        plt.figure(figsize=(6, 4))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+                    xticklabels=['Negative', 'Positive'], 
+                    yticklabels=['Negative', 'Positive'])
+        plt.ylabel('True label')
+        plt.xlabel('Predicted label')
 
-            return accuracy, cm_image_path
+        # Simpan confusion matrix
+        app = create_app()
+        cm_image_path = os.path.join(app.config['UPLOAD_FOLDER'], 
+                                    f'confusion_matrix_{hotel_unit}.png')
+        plt.savefig(cm_image_path, format='png')
+        plt.close()
+
+        return accuracy, cm_image_path, report
 
     def save_model(self, vectorizer_path='vectorizer.pkl', classifier_path='classifier.pkl'):
         try:

@@ -1,18 +1,76 @@
-<!-- templates/evaluate.html -->
-{% extends "base.html" %}
-
-{% block content %}
-    <h2>Evaluasi Model</h2>
-    <div class="card">
-        <div class="card-body">
-            <p>{{ session['evaluation_result'] }}</p>
-            
-            {% if session['confusion_matrix'] %}
-                <h4>Confusion Matrix</h4>
-                <img src="{{ url_for('static', filename='uploads/confusion_matrix.png') }}" alt="Confusion Matrix">
-            {% else %}
-                <p>Confusion Matrix tidak tersedia.</p>
-            {% endif %}
-        </div>
+{% extends "base.html" %} {% block content %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <h2 class="page-title">Evaluasi Menggunakan SVM</h2>
+      </div>
     </div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-body">
+    <p>{{ evaluation_result }}</p>
+
+    {% if confusion_matrix %}
+    <h4>Confusion Matrix</h4>
+    <img
+      src="{{ url_for('static', filename='uploads/' + confusion_matrix) }}"
+      alt="Confusion Matrix"
+    />
+    {% else %}
+    <p>Confusion Matrix tidak tersedia.</p>
+    {% endif %} {% if classification_report %}
+    <h4>Classification Report</h4>
+    <table class="table table-bordered">
+      <thead>
+        <tr>
+          <th>Class</th>
+          <th>Precision</th>
+          <th>Recall</th>
+          <th>F1-Score</th>
+          <th>Support</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Negative</td>
+          <td>{{ classification_report['Negative']['Precision'] }}</td>
+          <td>{{ classification_report['Negative']['Recall'] }}</td>
+          <td>{{ classification_report['Negative']['F1-Score'] }}</td>
+          <td>{{ classification_report['Negative']['Support'] }}</td>
+        </tr>
+        <tr>
+          <td>Positive</td>
+          <td>{{ classification_report['Positive']['Precision'] }}</td>
+          <td>{{ classification_report['Positive']['Recall'] }}</td>
+          <td>{{ classification_report['Positive']['F1-Score'] }}</td>
+          <td>{{ classification_report['Positive']['Support'] }}</td>
+        </tr>
+        <tr>
+          <td colspan="5">
+            <strong>Accuracy: {{ classification_report['Accuracy'] }}</strong>
+          </td>
+        </tr>
+        <tr>
+          <td>Macro Avg</td>
+          <td>{{ classification_report['Macro Avg']['Precision'] }}</td>
+          <td>{{ classification_report['Macro Avg']['Recall'] }}</td>
+          <td>{{ classification_report['Macro Avg']['F1-Score'] }}</td>
+          <td>{{ classification_report['Macro Avg']['Support'] }}</td>
+        </tr>
+        <tr>
+          <td>Weighted Avg</td>
+          <td>{{ classification_report['Weighted Avg']['Precision'] }}</td>
+          <td>{{ classification_report['Weighted Avg']['Recall'] }}</td>
+          <td>{{ classification_report['Weighted Avg']['F1-Score'] }}</td>
+          <td>{{ classification_report['Weighted Avg']['Support'] }}</td>
+        </tr>
+      </tbody>
+    </table>
+    {% else %}
+    <p>Classification Report tidak tersedia.</p>
+    {% endif %}
+  </div>
+</div>
 {% endblock %}
