@@ -1,76 +1,121 @@
-{% extends "base.html" %} {% block content %}
-<div class="page-header d-print-none">
-  <div class="container-xl">
-    <div class="row g-2 align-items-center">
-      <div class="col">
-        <h2 class="page-title">Evaluasi Menggunakan SVM</h2>
-      </div>
-    </div>
-  </div>
-</div>
-<div class="card">
-  <div class="card-body">
-    <p>{{ evaluation_result }}</p>
+{% extends "base.html" %}
 
-    {% if confusion_matrix %}
-    <h4>Confusion Matrix</h4>
-    <img
-      src="{{ url_for('static', filename='uploads/' + confusion_matrix) }}"
-      alt="Confusion Matrix"
-    />
-    {% else %}
-    <p>Confusion Matrix tidak tersedia.</p>
-    {% endif %} {% if classification_report %}
-    <h4>Classification Report</h4>
-    <table class="table table-bordered">
-      <thead>
-        <tr>
-          <th>Class</th>
-          <th>Precision</th>
-          <th>Recall</th>
-          <th>F1-Score</th>
-          <th>Support</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Negative</td>
-          <td>{{ classification_report['Negative']['Precision'] }}</td>
-          <td>{{ classification_report['Negative']['Recall'] }}</td>
-          <td>{{ classification_report['Negative']['F1-Score'] }}</td>
-          <td>{{ classification_report['Negative']['Support'] }}</td>
-        </tr>
-        <tr>
-          <td>Positive</td>
-          <td>{{ classification_report['Positive']['Precision'] }}</td>
-          <td>{{ classification_report['Positive']['Recall'] }}</td>
-          <td>{{ classification_report['Positive']['F1-Score'] }}</td>
-          <td>{{ classification_report['Positive']['Support'] }}</td>
-        </tr>
-        <tr>
-          <td colspan="5">
-            <strong>Accuracy: {{ classification_report['Accuracy'] }}</strong>
-          </td>
-        </tr>
-        <tr>
-          <td>Macro Avg</td>
-          <td>{{ classification_report['Macro Avg']['Precision'] }}</td>
-          <td>{{ classification_report['Macro Avg']['Recall'] }}</td>
-          <td>{{ classification_report['Macro Avg']['F1-Score'] }}</td>
-          <td>{{ classification_report['Macro Avg']['Support'] }}</td>
-        </tr>
-        <tr>
-          <td>Weighted Avg</td>
-          <td>{{ classification_report['Weighted Avg']['Precision'] }}</td>
-          <td>{{ classification_report['Weighted Avg']['Recall'] }}</td>
-          <td>{{ classification_report['Weighted Avg']['F1-Score'] }}</td>
-          <td>{{ classification_report['Weighted Avg']['Support'] }}</td>
-        </tr>
-      </tbody>
-    </table>
-    {% else %}
-    <p>Classification Report tidak tersedia.</p>
-    {% endif %}
-  </div>
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">Evaluasi Model</h2>
+            </div>
+        </div>
+    </div>
 </div>
+
+<!-- Check which model is selected -->
+{% if model == 'svm' %}
+    <!-- SVM Results -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title">Support Vector Machine (SVM)</h3>
+        </div>
+        <div class="card-body">
+            {% if svm_results %}
+                <p><strong>Akurasi:</strong> {{ svm_results.accuracy }}</p>
+                
+                {% if svm_results.confusion_matrix %}
+                    <h4>Confusion Matrix - SVM</h4>
+                    <img src="{{ url_for('static', filename='uploads/' + svm_results.confusion_matrix.split('/')[-1]) }}" 
+                         alt="SVM Confusion Matrix" class="img-fluid mb-3"/>
+                {% endif %}
+
+                {% if svm_report %}
+                    <h4>Classification Report - SVM</h4>
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Class</th>
+                                <th>Precision</th>
+                                <th>Recall</th>
+                                <th>F1-Score</th>
+                                <th>Support</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Negative</td>
+                                <td>{{ svm_report['Negative']['Precision'] }}</td>
+                                <td>{{ svm_report['Negative']['Recall'] }}</td>
+                                <td>{{ svm_report['Negative']['F1-Score'] }}</td>
+                                <td>{{ svm_report['Negative']['Support'] }}</td>
+                            </tr>
+                            <tr>
+                                <td>Positive</td>
+                                <td>{{ svm_report['Positive']['Precision'] }}</td>
+                                <td>{{ svm_report['Positive']['Recall'] }}</td>
+                                <td>{{ svm_report['Positive']['F1-Score'] }}</td>
+                                <td>{{ svm_report['Positive']['Support'] }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                {% endif %}
+            {% else %}
+                <p>No SVM results available.</p>
+            {% endif %}
+        </div>
+    </div>
+{% elif model == 'naive_bayes' %}
+    <!-- Naive Bayes Results -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title">Naive Bayes</h3>
+        </div>
+        <div class="card-body">
+            {% if nb_results %}
+                <p><strong>Akurasi:</strong> {{ nb_results.accuracy }}</p>
+                
+                {% if nb_results.confusion_matrix %}
+                    <h4>Confusion Matrix - Naive Bayes</h4>
+                    <img src="{{ url_for('static', filename='uploads/' + nb_results.confusion_matrix.split('/')[-1]) }}" 
+                         alt="Naive Bayes Confusion Matrix" class="img-fluid mb-3"/>
+                {% endif %}
+
+                {% if nb_report %}
+                    <h4>Classification Report - Naive Bayes</h4>
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Class</th>
+                                <th>Precision</th>
+                                <th>Recall</th>
+                                <th>F1-Score</th>
+                                <th>Support</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Negative</td>
+                                <td>{{ nb_report['Negative']['Precision'] }}</td>
+                                <td>{{ nb_report['Negative']['Recall'] }}</td>
+                                <td>{{ nb_report['Negative']['F1-Score'] }}</td>
+                                <td>{{ nb_report['Negative']['Support'] }}</td>
+                            </tr>
+                            <tr>
+                                <td>Positive</td>
+                                <td>{{ nb_report['Positive']['Precision'] }}</td>
+                                <td>{{ nb_report['Positive']['Recall'] }}</td>
+                                <td>{{ nb_report['Positive']['F1-Score'] }}</td>
+                                <td>{{ nb_report['Positive']['Support'] }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                {% endif %}
+            {% else %}
+                <p>No Naive Bayes results available.</p>
+            {% endif %}
+        </div>
+    </div>
+{% else %}
+    <p>No model selected or invalid model.</p>
+{% endif %}
+
 {% endblock %}

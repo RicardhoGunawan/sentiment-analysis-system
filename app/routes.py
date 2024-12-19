@@ -400,27 +400,21 @@ def init_routes(app):
                 flash('No file selected')
                 return redirect(request.url)
 
-            if file:
-                # Gunakan secure filename dan simpan ke folder uploads statis
+            try:
                 filename = secure_filename(file.filename)
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(filepath)
 
-            try:
                 # Baca file
                 if filename.endswith('.csv'):
                     df = pd.read_csv(filepath, sep=';')
                 else:
                     df = pd.read_excel(filepath)
 
-                # Validasi hotel_unit pada setiap baris data
+                # Validasi hotel_unit
                 invalid_hotel_units = df[df['hotel_unit'].str.lower() != current_user_hotel_name]
-
                 if not invalid_hotel_units.empty:
-                    # Hapus file yang diupload
                     os.remove(filepath)
-
-                    # Siapkan pesan error dengan detail hotel_unit yang tidak sesuai
                     invalid_hotels_list = ", ".join(invalid_hotel_units['hotel_unit'].unique())
                     flash(f'Upload gagal. Hotel unit tidak sesuai: {invalid_hotels_list}')
                     return redirect(request.url)
@@ -428,39 +422,46 @@ def init_routes(app):
                 # Konversi format tanggal
                 df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.strftime('%Y-%m-%d')
 
-                # Ambil daftar hotel dari database untuk validasi
+                # Ambil daftar hotel
                 with mysql.connection.cursor() as cur:
                     cur.execute('SELECT id, name FROM hotels')
                     hotels_map = {hotel[1].lower(): hotel[0] for hotel in cur.fetchall()}
 
-                # Pisahkan ulasan menjadi training dan testing (80%:20%)
+                # Split data
                 train_data, test_data = train_test_split(df, test_size=0.2, random_state=42)
 
-                # Simpan ke file untuk digunakan dalam pelatihan model
+                # Simpan data
                 train_data_path = os.path.join(app.config['UPLOAD_FOLDER'], f'train_data_{current_user.hotel_unit}.csv')
                 test_data_path = os.path.join(app.config['UPLOAD_FOLDER'], f'test_data_{current_user.hotel_unit}.csv')
-
                 train_data.to_csv(train_data_path, index=False)
                 test_data.to_csv(test_data_path, index=False)
 
-                # Lanjutkan proses pelatihan model dengan train_data
+                # Train models
                 sentiment_analyzer.train_and_save(train_data)
 
-                # Menambahkan kolom 'sentiment_label' pada test_data jika tidak ada
+                # Add sentiment labels if needed
                 if 'sentiment_label' not in test_data.columns:
                     test_data['sentiment_label'] = test_data['review'].apply(sentiment_analyzer.get_sentiment_label)
 
-                # Gunakan test_data untuk evaluasi model dengan hotel_unit
-                test_accuracy, cm_image_path, classification_report = sentiment_analyzer.evaluate(test_data, current_user.hotel_unit)
-                logging.info(f"Test accuracy for hotel {current_user.hotel_unit}: {test_accuracy}")
-
-                # Simpan hasil evaluasi, confusion matrix, dan classification report ke session
-                session['evaluation_result'] = f"Hasil Evaluasi Model: Akurasi {test_accuracy:.2f}%"
-                session['confusion_matrix'] = f'confusion_matrix_{current_user.hotel_unit}.png'
+                # Evaluate models
+                evaluation_results = sentiment_analyzer.evaluate(test_data, current_user.hotel_unit)
+                
+                # Save results to session
+                session['svm_results'] = {
+                    'accuracy': f"SVM Model Accuracy: {evaluation_results['svm']['accuracy']:.2f}%",
+                    'confusion_matrix': evaluation_results['svm']['confusion_matrix'],
+                    'report': evaluation_results['svm']['report']
+                }
+                
+                session['nb_results'] = {
+                    'accuracy': f"Naive Bayes Model Accuracy: {evaluation_results['naive_bayes']['accuracy']:.2f}%",
+                    'confusion_matrix': evaluation_results['naive_bayes']['confusion_matrix'],
+                    'report': evaluation_results['naive_bayes']['report']
+                }
+                
                 session['hotel_unit'] = current_user.hotel_unit
-                session['classification_report'] = classification_report
 
-                # Simpan review ke database
+                # Save reviews to database
                 for _, row in train_data.iterrows():
                     hotel_name = row['hotel_unit'].lower()
                     hotel_id = hotels_map.get(hotel_name)
@@ -469,17 +470,16 @@ def init_routes(app):
                         logging.warning(f"Hotel not found: {row['hotel_unit']}")
                         continue
 
-                    # Ambil kolom review
                     review = row['review'] if pd.notna(row['review']) else ""
                     rating = row['rating'] if pd.notna(row['rating']) else None
 
-                    # Validasi rating
                     if rating is not None and (rating < 1 or rating > 10):
                         logging.warning(f"Review skipped due to invalid rating: {rating}")
                         continue
 
                     cleaned_review = sentiment_analyzer.preprocess_text(review)
-                    sentiment = sentiment_analyzer.predict([cleaned_review])[0]
+                    # Use SVM model for prediction
+                    sentiment = sentiment_analyzer.predict([cleaned_review], model='svm')[0]
 
                     Review.add_review(
                         hotel_id,
@@ -490,23 +490,23 @@ def init_routes(app):
                         sentiment
                     )
 
-                # Bersihkan file
+                # Cleanup
                 os.remove(filepath)
                 os.remove(train_data_path)
                 os.remove(test_data_path)
 
                 flash('File uploaded and processed successfully')
-                return redirect(url_for('evaluate'))  # Arahkan ke halaman evaluate untuk melihat hasil
+                return redirect(url_for('evaluate'))
 
             except Exception as e:
-                # Hapus file jika terjadi error
+                # Cleanup on error
                 if os.path.exists(filepath):
                     os.remove(filepath)
-                if os.path.exists(train_data_path):
+                if 'train_data_path' in locals() and os.path.exists(train_data_path):
                     os.remove(train_data_path)
-                if os.path.exists(test_data_path):
+                if 'test_data_path' in locals() and os.path.exists(test_data_path):
                     os.remove(test_data_path)
-                    
+                
                 logging.error(f"Error processing file: {str(e)}")
                 flash(f'Error processing file: {str(e)}')
                 return redirect(request.url)
@@ -610,56 +610,105 @@ def init_routes(app):
 
         return jsonify({'success': True})
     
-    @app.route('/evaluate', methods=['GET'])
+    @app.route('/evaluate/<model>', methods=['GET'])
     @login_required
-    def evaluate():
+    def evaluate(model):
         # Ambil hotel_unit dari user yang sedang login
         current_user_hotel_unit = current_user.hotel_unit
 
         # Periksa apakah hasil evaluasi tersedia dan sesuai dengan hotel_unit user
         stored_hotel_unit = session.get('hotel_unit')
-        
+
         if stored_hotel_unit is None or stored_hotel_unit != current_user_hotel_unit:
             flash('Tidak ada hasil evaluasi untuk hotel Anda.')
-            return render_template('evaluate.html', evaluation_result='Model belum dievaluasi.')
+            return render_template('evaluate.html', svm_results=None, nb_results=None, svm_label_counts=None, nb_label_counts=None)
 
-        evaluation_result = session.get('evaluation_result', 'Model belum dievaluasi.')
-        confusion_matrix = session.get('confusion_matrix')
-        report = session.get('classification_report')
+        # Ambil hasil evaluasi dari session atau database berdasarkan model yang dipilih
+        if model == 'svm':
+            svm_results = session.get('svm_results')
+            nb_results = None
+            svm_label_counts = session.get('svm_label_counts')  # Ambil svm_label_counts
+            nb_label_counts = None
+        elif model == 'naive_bayes':
+            svm_results = None
+            nb_results = session.get('nb_results')
+            svm_label_counts = None
+            nb_label_counts = session.get('nb_label_counts')  # Ambil nb_label_counts
+        else:
+            svm_results = None
+            nb_results = None
+            svm_label_counts = None
+            nb_label_counts = None
 
-        # Format classification report untuk ditampilkan
-        if report:
-            formatted_report = {
+        # Format classification report untuk ditampilkan jika ada
+        svm_report = None
+        nb_report = None
+
+        # Proses hasil evaluasi untuk SVM jika ada
+        if svm_results and svm_results.get('report'):
+            svm_report = {
                 'Negative': {
-                    'Precision': f"{report['Negative']['precision']:.2f}",
-                    'Recall': f"{report['Negative']['recall']:.2f}",
-                    'F1-Score': f"{report['Negative']['f1-score']:.2f}",
-                    'Support': report['Negative']['support']
+                    'Precision': f"{svm_results['report']['Negative']['precision']:.2f}",
+                    'Recall': f"{svm_results['report']['Negative']['recall']:.2f}",
+                    'F1-Score': f"{svm_results['report']['Negative']['f1-score']:.2f}",
+                    'Support': svm_results['report']['Negative']['support']
                 },
                 'Positive': {
-                    'Precision': f"{report['Positive']['precision']:.2f}",
-                    'Recall': f"{report['Positive']['recall']:.2f}",
-                    'F1-Score': f"{report['Positive']['f1-score']:.2f}",
-                    'Support': report['Positive']['support']
+                    'Precision': f"{svm_results['report']['Positive']['precision']:.2f}",
+                    'Recall': f"{svm_results['report']['Positive']['recall']:.2f}",
+                    'F1-Score': f"{svm_results['report']['Positive']['f1-score']:.2f}",
+                    'Support': svm_results['report']['Positive']['support']
                 },
-                'Accuracy': f"{report['accuracy']:.2f}",
+                'Accuracy': f"{svm_results['report']['accuracy']:.2f}",
                 'Macro Avg': {
-                    'Precision': f"{report['macro avg']['precision']:.2f}",
-                    'Recall': f"{report['macro avg']['recall']:.2f}",
-                    'F1-Score': f"{report['macro avg']['f1-score']:.2f}",
-                    'Support': report['macro avg']['support']
+                    'Precision': f"{svm_results['report']['macro avg']['precision']:.2f}",
+                    'Recall': f"{svm_results['report']['macro avg']['recall']:.2f}",
+                    'F1-Score': f"{svm_results['report']['macro avg']['f1-score']:.2f}",
+                    'Support': svm_results['report']['macro avg']['support']
                 },
                 'Weighted Avg': {
-                    'Precision': f"{report['weighted avg']['precision']:.2f}",
-                    'Recall': f"{report['weighted avg']['recall']:.2f}",
-                    'F1-Score': f"{report['weighted avg']['f1-score']:.2f}",
-                    'Support': report['weighted avg']['support']
+                    'Precision': f"{svm_results['report']['weighted avg']['precision']:.2f}",
+                    'Recall': f"{svm_results['report']['weighted avg']['recall']:.2f}",
+                    'F1-Score': f"{svm_results['report']['weighted avg']['f1-score']:.2f}",
+                    'Support': svm_results['report']['weighted avg']['support']
                 }
             }
-        else:
-            formatted_report = None
+
+        # Proses hasil evaluasi untuk Naive Bayes jika ada
+        if nb_results and nb_results.get('report'):
+            nb_report = {
+                'Negative': {
+                    'Precision': f"{nb_results['report']['Negative']['precision']:.2f}",
+                    'Recall': f"{nb_results['report']['Negative']['recall']:.2f}",
+                    'F1-Score': f"{nb_results['report']['Negative']['f1-score']:.2f}",
+                    'Support': nb_results['report']['Negative']['support']
+                },
+                'Positive': {
+                    'Precision': f"{nb_results['report']['Positive']['precision']:.2f}",
+                    'Recall': f"{nb_results['report']['Positive']['recall']:.2f}",
+                    'F1-Score': f"{nb_results['report']['Positive']['f1-score']:.2f}",
+                    'Support': nb_results['report']['Positive']['support']
+                },
+                'Accuracy': f"{nb_results['report']['accuracy']:.2f}",
+                'Macro Avg': {
+                    'Precision': f"{nb_results['report']['macro avg']['precision']:.2f}",
+                    'Recall': f"{nb_results['report']['macro avg']['recall']:.2f}",
+                    'F1-Score': f"{nb_results['report']['macro avg']['f1-score']:.2f}",
+                    'Support': nb_results['report']['macro avg']['support']
+                },
+                'Weighted Avg': {
+                    'Precision': f"{nb_results['report']['weighted avg']['precision']:.2f}",
+                    'Recall': f"{nb_results['report']['weighted avg']['recall']:.2f}",
+                    'F1-Score': f"{nb_results['report']['weighted avg']['f1-score']:.2f}",
+                    'Support': nb_results['report']['weighted avg']['support']
+                }
+            }
 
         return render_template('evaluate.html', 
-                            evaluation_result=evaluation_result,
-                            confusion_matrix=confusion_matrix,
-                            classification_report=formatted_report)
+                            svm_results=svm_results, 
+                            nb_results=nb_results, 
+                            svm_report=svm_report, 
+                            nb_report=nb_report, 
+                            svm_label_counts=svm_label_counts,  # Pass svm_label_counts to template
+                            nb_label_counts=nb_label_counts,    # Pass nb_label_counts to template
+                            model=model)

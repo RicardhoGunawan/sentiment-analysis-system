@@ -68,8 +68,8 @@
                                     <span class="nav-link-title">Evaluate Model</span>
                                 </a>
                                 <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
-                                    <li><a class="dropdown-item" href="{{ url_for('evaluate') }}">Klasifikasi SVM</a></li>
-                                    <li><a class="dropdown-item" href="{{ url_for('evaluate') }}">Klasifikasi NB</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('evaluate', model='svm') }}">Klasifikasi SVM</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('evaluate', model='naive_bayes') }}">Klasifikasi NB</a></li>
                                 </ul>
                             </li>
                             
