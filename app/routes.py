@@ -430,18 +430,30 @@ def init_routes(app):
                 # Split data
                 train_data, test_data = train_test_split(df, test_size=0.2, random_state=42)
 
-                # Simpan data
+                # Save original split data
                 train_data_path = os.path.join(app.config['UPLOAD_FOLDER'], f'train_data_{current_user.hotel_unit}.csv')
                 test_data_path = os.path.join(app.config['UPLOAD_FOLDER'], f'test_data_{current_user.hotel_unit}.csv')
                 train_data.to_csv(train_data_path, index=False)
                 test_data.to_csv(test_data_path, index=False)
 
-                # Train models
-                sentiment_analyzer.train_and_save(train_data)
+                # Save translated data
+                translated_train_path = os.path.join(app.config['UPLOAD_FOLDER'], 
+                                                f'translated_train_{current_user.hotel_unit}.csv')
+                translated_test_path = os.path.join(app.config['UPLOAD_FOLDER'], 
+                                                f'translated_test_{current_user.hotel_unit}.csv')
+                
+                # Translate and save training data
+                translated_train_data = sentiment_analyzer.save_translated_data(train_data, translated_train_path)
+                translated_test_data = sentiment_analyzer.save_translated_data(test_data, translated_test_path)
 
-                # Add sentiment labels if needed
+                # Train models with translated data
+                sentiment_analyzer.train_and_save(translated_train_data)
+
+                # Add sentiment labels using TextBlob on translated data
                 if 'sentiment_label' not in test_data.columns:
-                    test_data['sentiment_label'] = test_data['review'].apply(sentiment_analyzer.get_sentiment_label)
+                    test_data['sentiment_label'] = translated_test_data['translated_review'].apply(
+                        sentiment_analyzer.get_textblob_sentiment
+                    )
 
                 # Evaluate models
                 evaluation_results = sentiment_analyzer.evaluate(test_data, current_user.hotel_unit)
@@ -461,7 +473,7 @@ def init_routes(app):
                 
                 session['hotel_unit'] = current_user.hotel_unit
 
-                # Save reviews to database
+                # Save reviews to database with translated sentiment
                 for _, row in train_data.iterrows():
                     hotel_name = row['hotel_unit'].lower()
                     hotel_id = hotels_map.get(hotel_name)
@@ -478,8 +490,9 @@ def init_routes(app):
                         continue
 
                     cleaned_review = sentiment_analyzer.preprocess_text(review)
-                    # Use SVM model for prediction
-                    sentiment = sentiment_analyzer.predict([cleaned_review], model='svm')[0]
+                    # Translate and get sentiment
+                    translated_review = sentiment_analyzer.translate_to_english(cleaned_review)
+                    sentiment = sentiment_analyzer.get_textblob_sentiment(translated_review)
 
                     Review.add_review(
                         hotel_id,
@@ -491,21 +504,20 @@ def init_routes(app):
                     )
 
                 # Cleanup
-                os.remove(filepath)
-                os.remove(train_data_path)
-                os.remove(test_data_path)
+                for file_path in [filepath, train_data_path, test_data_path, 
+                                translated_train_path, translated_test_path]:
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
 
-                flash('File uploaded and processed successfully')
+                flash('File uploaded, translated, and processed successfully')
                 return redirect(url_for('evaluate'))
 
             except Exception as e:
                 # Cleanup on error
-                if os.path.exists(filepath):
-                    os.remove(filepath)
-                if 'train_data_path' in locals() and os.path.exists(train_data_path):
-                    os.remove(train_data_path)
-                if 'test_data_path' in locals() and os.path.exists(test_data_path):
-                    os.remove(test_data_path)
+                for file_path in [filepath, train_data_path, test_data_path, 
+                                translated_train_path, translated_test_path]:
+                    if 'file_path' in locals() and os.path.exists(file_path):
+                        os.remove(file_path)
                 
                 logging.error(f"Error processing file: {str(e)}")
                 flash(f'Error processing file: {str(e)}')

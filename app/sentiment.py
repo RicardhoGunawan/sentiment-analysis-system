@@ -23,6 +23,8 @@ import logging
 from app import create_app
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
 from collections import Counter
+from googletrans import Translator
+from textblob import TextBlob
 
 
 # Konfigurasi logging
@@ -34,8 +36,8 @@ nltk.download('punkt', quiet=True)
 nltk.download('stopwords', quiet=True)
 
 class SentimentAnalyzer:
-    def __init__(self, positive_words_path='app/static/dictionary_words/positive_words.txt', 
-                 negative_words_path='app/static/dictionary_words/negative_words.txt',
+    def __init__(self,  #positive_words_path='app/static/dictionary_words/positive_words.txt', 
+                 # negative_words_path='app/static/dictionary_words/negative_words.txt',
                  normalization_file_path='app/static/dictionary_words/normalization.txt'):
         # Gunakan stemmer dari Sastrawi
         factory = StemmerFactory()
@@ -51,32 +53,36 @@ class SentimentAnalyzer:
 
 
         # Path ke file kamus kata positif dan negatif
-        self.positive_words_path = positive_words_path
-        self.negative_words_path = negative_words_path
+        # self.positive_words_path = positive_words_path
+        # self.negative_words_path = negative_words_path
         self.normalization_file_path = normalization_file_path
 
         # Memuat kata-kata positif dan negatif
-        self.positive_words = self.load_words_from_file(positive_words_path)
-        self.negative_words = self.load_words_from_file(negative_words_path)
+        # self.positive_words = self.load_words_from_file(positive_words_path)
+        # self.negative_words = self.load_words_from_file(negative_words_path)
 
         # Memuat kamus normalisasi
         self.normalization_dict = self.load_normalization_dict(normalization_file_path)
+        
+        self.translator = Translator()
 
         # Logging informasi
-        logging.info(f"Positive words loaded: {len(self.positive_words)}")
-        logging.info(f"Negative words loaded: {len(self.negative_words)}")
-        logging.info(f"Normalization dictionary loaded: {len(self.normalization_dict)}")
+        # logging.info(f"Positive words loaded: {len(self.positive_words)}")
+        # logging.info(f"Negative words loaded: {len(self.negative_words)}")
+        # logging.info(f"Normalization dictionary loaded: {len(self.normalization_dict)}")
+        logging.info("Initialized Translator")
 
-    def load_words_from_file(self, file_path):
-        """Memuat kata-kata dari file teks ke dalam set."""
-        try:
-            with open(file_path, 'r', encoding='utf-8') as file:
-                words = file.read().splitlines()
-                words = [word.strip().lower() for word in words if word.strip()]
-                return set(words)  # Ubah ke set untuk pencarian cepat
-        except FileNotFoundError:
-            logging.error(f"File {file_path} tidak ditemukan.")
-            return set()  # Kembalikan set kosong jika file tidak ditemukan
+
+    # def load_words_from_file(self, file_path):
+    #     """Memuat kata-kata dari file teks ke dalam set."""
+    #     try:
+    #         with open(file_path, 'r', encoding='utf-8') as file:
+    #             words = file.read().splitlines()
+    #             words = [word.strip().lower() for word in words if word.strip()]
+    #             return set(words)  # Ubah ke set untuk pencarian cepat
+    #     except FileNotFoundError:
+    #         logging.error(f"File {file_path} tidak ditemukan.")
+    #         return set()  #  Kembalikan set kosong jika file tidak ditemukan
 
     def load_normalization_dict(self, file_path):
         """Memuat kamus normalisasi dari file teks ke dalam dictionary."""
@@ -156,55 +162,95 @@ class SentimentAnalyzer:
         return ' '.join(tokens)
 
     
-    def get_sentiment_label(self, text):
-        """Determine sentiment label using custom Indonesian sentiment dictionary."""
-        if not isinstance(text, str):
-            logging.warning(f"Non-string input received: {text} of type {type(text)}")
-            return 'neutral'
-        
-        # Preprocess the text
-        text = text.lower()
-        words = word_tokenize(text)
+    def translate_to_english(self, text):
+        """Menerjemahkan teks bahasa Indonesia ke bahasa Inggris."""
+        try:
+            if pd.isna(text) or text == '':
+                return ''
+            translation = self.translator.translate(text, src='id', dest='en')
+            return translation.text
+        except Exception as e:
+            logging.error(f"Error translasi: {e}")
+            return text
 
-        # Count positive and negative words
-        positive_count = sum(1 for word in words if word in self.positive_words)
-        negative_count = sum(1 for word in words if word in self.negative_words)
+    def save_translated_data(self, df, output_path='translated_data.csv'):
+        """Menyimpan hasil terjemahan review ke file CSV."""
+        try:
+            if 'review' not in df.columns:
+                raise ValueError("Kolom 'review' tidak ditemukan dalam DataFrame")
 
-        # Calculate sentiment based on word counts
-        if positive_count > negative_count:
-            return 'positive'
-        elif negative_count > positive_count:
-            return 'negative'
-        else:
+            translated_df = df.copy()
+            # Preprocess dulu
+            translated_df['processed_review'] = translated_df['review'].apply(self.preprocess_text)
+            # Lalu translate
+            translated_df['translated_review'] = translated_df['processed_review'].apply(self.translate_to_english)
+            translated_df.to_csv(output_path, index=False)
+            logging.info(f"Data terjemahan berhasil disimpan ke {output_path}")
+            return translated_df
+        except Exception as e:
+            logging.error(f"Error menyimpan data terjemahan: {e}")
+            raise
+
+    def get_textblob_sentiment(self, text):
+        """Mendapatkan sentiment menggunakan TextBlob."""
+        try:
+            analysis = TextBlob(text)
+            # Konversi polaritas TextBlob ke label sentiment
+            if analysis.sentiment.polarity > 0:
+                return 'positive'
+            elif analysis.sentiment.polarity < 0:
+                return 'negative'
+            else:
+                return 'neutral'
+        except Exception as e:
+            logging.error(f"Error analisis TextBlob: {e}")
             return 'neutral'
 
     def prepare_data(self, df):
-        """Prepares data for training by processing reviews and removing duplicates."""
+        """Menyiapkan data untuk training dengan translasi dan analisis sentiment."""
         if df is None or len(df) == 0:
-            raise ValueError("Input DataFrame is empty or None")
+            raise ValueError("DataFrame input kosong atau None")
         
-        required_columns = ['review']
-        for col in required_columns:
-            if col not in df.columns:
-                raise ValueError(f"Required column '{col}' not found in DataFrame")
-
+        if 'review' not in df.columns:
+            raise ValueError("Kolom 'review' tidak ditemukan dalam DataFrame")
+        
+        # Hapus duplikat
         df_no_duplicates = df.drop_duplicates(subset=['review'])
-        logging.info(f"Removed {len(df) - len(df_no_duplicates)} duplicate reviews")
+        logging.info(f"Menghapus {len(df) - len(df_no_duplicates)} review duplikat")
         
-        if 'sentiment_label' not in df_no_duplicates.columns:
+        try:
+            # Preprocess dan translate
             df_no_duplicates['processed_review'] = df_no_duplicates['review'].apply(self.preprocess_text)
-            df_no_duplicates['sentiment_label'] = df_no_duplicates['review'].apply(self.get_sentiment_label)
+            df_no_duplicates['translated_review'] = df_no_duplicates['processed_review'].apply(self.translate_to_english)
+            
+            # Analisis sentiment menggunakan TextBlob
+            df_no_duplicates['sentiment_label'] = df_no_duplicates['translated_review'].apply(self.get_textblob_sentiment)
+            
+            df_filtered = df_no_duplicates.dropna(subset=['sentiment_label'])
+            logging.info(f"Distribusi label setelah filtering:\n{df_filtered['sentiment_label'].value_counts()}")
+            
+            return df_filtered
+            
+        except Exception as e:
+            logging.error(f"Error dalam prepare_data: {e}")
+            raise
 
-        df_filtered = df_no_duplicates.dropna(subset=['sentiment_label'])
-        logging.info(f"Label distribution after filtering:\n{df_filtered['sentiment_label'].value_counts()}")
-        logging.info(f"Total reviews after preprocessing: {len(df_filtered)}")
-        
-        if len(df_filtered) == 0:
-            logging.warning("No valid data found. Using original data with neutral labels.")
-            df_filtered = df_no_duplicates.copy()
-            df_filtered['sentiment_label'] = 'neutral' 
-        
-        return df_filtered
+    def get_sentiment_label(self, text):
+        """Memproses teks dan menentukan sentiment menggunakan translasi dan TextBlob."""
+        try:
+            # 1. Preprocess teks
+            processed_text = self.preprocess_text(text)
+            
+            # 2. Translate ke bahasa Inggris
+            translated_text = self.translate_to_english(processed_text)
+            
+            # 3. Dapatkan sentiment menggunakan TextBlob
+            sentiment = self.get_textblob_sentiment(translated_text)
+            
+            return sentiment
+        except Exception as e:
+            logging.error(f"Error dalam pipeline analisis sentiment: {e}")
+            return 'neutral'
 
     def train(self, X_train, y_train):
         # Pastikan X_train dan y_train memiliki panjang yang sama
