@@ -3,6 +3,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 import os
+import json
 import pandas as pd
 from sklearn.metrics import confusion_matrix
 import seaborn as sns
@@ -386,21 +387,23 @@ def init_routes(app):
     @login_required
     def upload():
         if request.method == 'POST':
-            # Ambil nama hotel dari user yang sedang login
-            with mysql.connection.cursor() as cur:
-                cur.execute('SELECT name FROM hotels WHERE id = %s', (current_user.hotel_unit,))
-                current_user_hotel_name = cur.fetchone()[0].lower()
-
-            if 'file' not in request.files:
-                flash('No file selected')
-                return redirect(request.url)
-
-            file = request.files['file']
-            if file.filename == '':
-                flash('No file selected')
-                return redirect(request.url)
-
             try:
+                # Ambil nama hotel dari user yang sedang login
+                with mysql.connection.cursor() as cur:
+                    cur.execute('SELECT name FROM hotels WHERE id = %s', (current_user.hotel_unit,))
+                    current_user_hotel_name = cur.fetchone()[0].lower()
+
+                # Buat folder untuk menyimpan hasil evaluasi
+                evaluation_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'evaluations', current_user_hotel_name)
+                os.makedirs(evaluation_folder, exist_ok=True)
+                evaluation_file = os.path.join(evaluation_folder, 'evaluation_results.json')
+
+                # Periksa apakah file dipilih
+                if 'file' not in request.files or request.files['file'].filename == '':
+                    flash('No file selected')
+                    return redirect(request.url)
+
+                file = request.files['file']
                 filename = secure_filename(file.filename)
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(filepath)
@@ -431,18 +434,15 @@ def init_routes(app):
                 train_data, test_data = train_test_split(df, test_size=0.2, random_state=42)
 
                 # Save original split data
-                train_data_path = os.path.join(app.config['UPLOAD_FOLDER'], f'train_data_{current_user.hotel_unit}.csv')
-                test_data_path = os.path.join(app.config['UPLOAD_FOLDER'], f'test_data_{current_user.hotel_unit}.csv')
+                train_data_path = os.path.join(evaluation_folder, f'train_data.csv')
+                test_data_path = os.path.join(evaluation_folder, f'test_data.csv')
                 train_data.to_csv(train_data_path, index=False)
                 test_data.to_csv(test_data_path, index=False)
 
-                # Save translated data
-                translated_train_path = os.path.join(app.config['UPLOAD_FOLDER'], 
-                                                f'translated_train_{current_user.hotel_unit}.csv')
-                translated_test_path = os.path.join(app.config['UPLOAD_FOLDER'], 
-                                                f'translated_test_{current_user.hotel_unit}.csv')
-                
                 # Translate and save training data
+                translated_train_path = os.path.join(evaluation_folder, 'translated_train.csv')
+                translated_test_path = os.path.join(evaluation_folder, 'translated_test.csv')
+
                 translated_train_data = sentiment_analyzer.save_translated_data(train_data, translated_train_path)
                 translated_test_data = sentiment_analyzer.save_translated_data(test_data, translated_test_path)
 
@@ -457,21 +457,33 @@ def init_routes(app):
 
                 # Evaluate models
                 evaluation_results = sentiment_analyzer.evaluate(test_data, current_user.hotel_unit)
-                
-                # Save results to session
-                session['svm_results'] = {
-                    'accuracy': f"SVM Model Accuracy: {evaluation_results['svm']['accuracy']:.2f}%",
-                    'confusion_matrix': evaluation_results['svm']['confusion_matrix'],
-                    'report': evaluation_results['svm']['report']
+
+                # Save evaluation results
+              # Save evaluation results
+                evaluation_data = {
+                    'svm_results': {
+                        'accuracy': f"SVM Model Accuracy: {evaluation_results['svm']['accuracy']:.3f}%",
+                        'confusion_matrix': (
+                            evaluation_results['svm']['confusion_matrix'].tolist()
+                            if hasattr(evaluation_results['svm']['confusion_matrix'], 'tolist') 
+                            else evaluation_results['svm']['confusion_matrix']
+                        ),
+                        'report': evaluation_results['svm']['report']
+                    },
+                    'nb_results': {
+                        'accuracy': f"Naive Bayes Model Accuracy: {evaluation_results['naive_bayes']['accuracy']:.3f}%",
+                        'confusion_matrix': (
+                            evaluation_results['naive_bayes']['confusion_matrix'].tolist()
+                            if hasattr(evaluation_results['naive_bayes']['confusion_matrix'], 'tolist') 
+                            else evaluation_results['naive_bayes']['confusion_matrix']
+                        ),
+                        'report': evaluation_results['naive_bayes']['report']
+                    },
+                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'hotel_unit': current_user.hotel_unit
                 }
-                
-                session['nb_results'] = {
-                    'accuracy': f"Naive Bayes Model Accuracy: {evaluation_results['naive_bayes']['accuracy']:.2f}%",
-                    'confusion_matrix': evaluation_results['naive_bayes']['confusion_matrix'],
-                    'report': evaluation_results['naive_bayes']['report']
-                }
-                
-                session['hotel_unit'] = current_user.hotel_unit
+                with open(evaluation_file, 'w') as f:
+                    json.dump(evaluation_data, f)
 
                 # Save reviews to database with translated sentiment
                 for _, row in train_data.iterrows():
@@ -490,7 +502,6 @@ def init_routes(app):
                         continue
 
                     cleaned_review = sentiment_analyzer.preprocess_text(review)
-                    # Translate and get sentiment
                     translated_review = sentiment_analyzer.translate_to_english(cleaned_review)
                     sentiment = sentiment_analyzer.get_textblob_sentiment(translated_review)
 
@@ -504,21 +515,14 @@ def init_routes(app):
                     )
 
                 # Cleanup
-                for file_path in [filepath, train_data_path, test_data_path, 
-                                translated_train_path, translated_test_path]:
+                for file_path in [filepath]:
                     if os.path.exists(file_path):
                         os.remove(file_path)
 
                 flash('File uploaded, translated, and processed successfully')
-                return redirect(url_for('evaluate'))
+                return redirect(url_for('evaluate', model='svm'))
 
             except Exception as e:
-                # Cleanup on error
-                for file_path in [filepath, train_data_path, test_data_path, 
-                                translated_train_path, translated_test_path]:
-                    if 'file_path' in locals() and os.path.exists(file_path):
-                        os.remove(file_path)
-                
                 logging.error(f"Error processing file: {str(e)}")
                 flash(f'Error processing file: {str(e)}')
                 return redirect(request.url)
@@ -625,102 +629,55 @@ def init_routes(app):
     @app.route('/evaluate/<model>', methods=['GET'])
     @login_required
     def evaluate(model):
-        # Ambil hotel_unit dari user yang sedang login
-        current_user_hotel_unit = current_user.hotel_unit
+        try:
+            # Ambil nama hotel dari user yang sedang login
+            with mysql.connection.cursor() as cur:
+                cur.execute('SELECT name FROM hotels WHERE id = %s', (current_user.hotel_unit,))
+                current_user_hotel_name = cur.fetchone()[0].lower()
 
-        # Periksa apakah hasil evaluasi tersedia dan sesuai dengan hotel_unit user
-        stored_hotel_unit = session.get('hotel_unit')
+            # Path ke file hasil evaluasi
+            evaluation_file = os.path.join(
+                app.config['UPLOAD_FOLDER'],
+                'evaluations',
+                current_user_hotel_name,
+                'evaluation_results.json'
+            )
 
-        if stored_hotel_unit is None or stored_hotel_unit != current_user_hotel_unit:
-            flash('Tidak ada hasil evaluasi untuk hotel Anda.')
-            return render_template('evaluate.html', svm_results=None, nb_results=None, svm_label_counts=None, nb_label_counts=None)
+            # Cek apakah file hasil evaluasi ada dan tidak kosong
+            if not os.path.exists(evaluation_file) or os.path.getsize(evaluation_file) == 0:
+                flash('Tidak ada hasil evaluasi untuk hotel Anda. Silakan upload data terlebih dahulu.')
+                return render_template('evaluate.html', model=model)
 
-        # Ambil hasil evaluasi dari session atau database berdasarkan model yang dipilih
-        if model == 'svm':
-            svm_results = session.get('svm_results')
-            nb_results = None
-            svm_label_counts = session.get('svm_label_counts')  # Ambil svm_label_counts
-            nb_label_counts = None
-        elif model == 'naive_bayes':
-            svm_results = None
-            nb_results = session.get('nb_results')
-            svm_label_counts = None
-            nb_label_counts = session.get('nb_label_counts')  # Ambil nb_label_counts
-        else:
-            svm_results = None
-            nb_results = None
-            svm_label_counts = None
-            nb_label_counts = None
+            # Baca hasil evaluasi dari file JSON
+            with open(evaluation_file, 'r') as f:
+                evaluation_data = json.load(f)
 
-        # Format classification report untuk ditampilkan jika ada
-        svm_report = None
-        nb_report = None
+            # Ambil hasil evaluasi berdasarkan model yang dipilih
+            if model == 'svm':
+                svm_results = evaluation_data.get('svm_results', None)
+                svm_report = svm_results.get('report', None) if svm_results else None
+                return render_template(
+                    'evaluate.html',
+                    model=model,
+                    svm_results=svm_results,
+                    svm_report=svm_report
+                )
+            elif model == 'naive_bayes':
+                nb_results = evaluation_data.get('nb_results', None)
+                nb_report = nb_results.get('report', None) if nb_results else None
+                return render_template(
+                    'evaluate.html',
+                    model=model,
+                    nb_results=nb_results,
+                    nb_report=nb_report
+                )
+            else:
+                flash('Model yang dipilih tidak valid.')
+                return render_template('evaluate.html', model=model)
 
-        # Proses hasil evaluasi untuk SVM jika ada
-        if svm_results and svm_results.get('report'):
-            svm_report = {
-                'Negative': {
-                    'Precision': f"{svm_results['report']['Negative']['precision']:.2f}",
-                    'Recall': f"{svm_results['report']['Negative']['recall']:.2f}",
-                    'F1-Score': f"{svm_results['report']['Negative']['f1-score']:.2f}",
-                    'Support': svm_results['report']['Negative']['support']
-                },
-                'Positive': {
-                    'Precision': f"{svm_results['report']['Positive']['precision']:.2f}",
-                    'Recall': f"{svm_results['report']['Positive']['recall']:.2f}",
-                    'F1-Score': f"{svm_results['report']['Positive']['f1-score']:.2f}",
-                    'Support': svm_results['report']['Positive']['support']
-                },
-                'Accuracy': f"{svm_results['report']['accuracy']:.2f}",
-                'Macro Avg': {
-                    'Precision': f"{svm_results['report']['macro avg']['precision']:.2f}",
-                    'Recall': f"{svm_results['report']['macro avg']['recall']:.2f}",
-                    'F1-Score': f"{svm_results['report']['macro avg']['f1-score']:.2f}",
-                    'Support': svm_results['report']['macro avg']['support']
-                },
-                'Weighted Avg': {
-                    'Precision': f"{svm_results['report']['weighted avg']['precision']:.2f}",
-                    'Recall': f"{svm_results['report']['weighted avg']['recall']:.2f}",
-                    'F1-Score': f"{svm_results['report']['weighted avg']['f1-score']:.2f}",
-                    'Support': svm_results['report']['weighted avg']['support']
-                }
-            }
+        except Exception as e:
+            logging.error(f"Error in evaluate route: {str(e)}")
+            flash('Terjadi kesalahan saat membaca hasil evaluasi.')
+            return render_template('evaluate.html', model=model)
 
-        # Proses hasil evaluasi untuk Naive Bayes jika ada
-        if nb_results and nb_results.get('report'):
-            nb_report = {
-                'Negative': {
-                    'Precision': f"{nb_results['report']['Negative']['precision']:.2f}",
-                    'Recall': f"{nb_results['report']['Negative']['recall']:.2f}",
-                    'F1-Score': f"{nb_results['report']['Negative']['f1-score']:.2f}",
-                    'Support': nb_results['report']['Negative']['support']
-                },
-                'Positive': {
-                    'Precision': f"{nb_results['report']['Positive']['precision']:.2f}",
-                    'Recall': f"{nb_results['report']['Positive']['recall']:.2f}",
-                    'F1-Score': f"{nb_results['report']['Positive']['f1-score']:.2f}",
-                    'Support': nb_results['report']['Positive']['support']
-                },
-                'Accuracy': f"{nb_results['report']['accuracy']:.2f}",
-                'Macro Avg': {
-                    'Precision': f"{nb_results['report']['macro avg']['precision']:.2f}",
-                    'Recall': f"{nb_results['report']['macro avg']['recall']:.2f}",
-                    'F1-Score': f"{nb_results['report']['macro avg']['f1-score']:.2f}",
-                    'Support': nb_results['report']['macro avg']['support']
-                },
-                'Weighted Avg': {
-                    'Precision': f"{nb_results['report']['weighted avg']['precision']:.2f}",
-                    'Recall': f"{nb_results['report']['weighted avg']['recall']:.2f}",
-                    'F1-Score': f"{nb_results['report']['weighted avg']['f1-score']:.2f}",
-                    'Support': nb_results['report']['weighted avg']['support']
-                }
-            }
 
-        return render_template('evaluate.html', 
-                            svm_results=svm_results, 
-                            nb_results=nb_results, 
-                            svm_report=svm_report, 
-                            nb_report=nb_report, 
-                            svm_label_counts=svm_label_counts,  # Pass svm_label_counts to template
-                            nb_label_counts=nb_label_counts,    # Pass nb_label_counts to template
-                            model=model)
