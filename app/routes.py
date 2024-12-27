@@ -462,7 +462,7 @@ def init_routes(app):
               # Save evaluation results
                 evaluation_data = {
                     'svm_results': {
-                        'accuracy': f"SVM Model Accuracy: {evaluation_results['svm']['accuracy']:.3f}%",
+                        'accuracy': f"SVM Model Accuracy: {evaluation_results['svm']['accuracy']:.2f}%",
                         'confusion_matrix': (
                             evaluation_results['svm']['confusion_matrix'].tolist()
                             if hasattr(evaluation_results['svm']['confusion_matrix'], 'tolist') 
@@ -471,7 +471,7 @@ def init_routes(app):
                         'report': evaluation_results['svm']['report']
                     },
                     'nb_results': {
-                        'accuracy': f"Naive Bayes Model Accuracy: {evaluation_results['naive_bayes']['accuracy']:.3f}%",
+                        'accuracy': f"Naive Bayes Model Accuracy: {evaluation_results['naive_bayes']['accuracy']:.2f}%",
                         'confusion_matrix': (
                             evaluation_results['naive_bayes']['confusion_matrix'].tolist()
                             if hasattr(evaluation_results['naive_bayes']['confusion_matrix'], 'tolist') 
