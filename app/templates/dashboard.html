@@ -261,23 +261,30 @@
   $(document).ready(function() {
     let sentimentChart, ratingChart;
 
-    // Function to get colors based on sentiment
-    function getChartColors(data) {
+    // Enhanced color palette with gradients
+    function createGradient(ctx, startColor, endColor) {
+        const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient.addColorStop(0, startColor);
+        gradient.addColorStop(1, endColor);
+        return gradient;
+    }
+
+    function getChartColors(ctx, data) {
         const colors = [];
         Object.keys(data).forEach(label => {
             if (label.toLowerCase() === 'positive') {
-                colors.push('#28a745'); // Green for positive
+                colors.push(createGradient(ctx, '#34D399', '#059669')); // Green gradient
             } else if (label.toLowerCase() === 'negative') {
-                colors.push('#dc3545'); // Red for negative
+                colors.push(createGradient(ctx, '#F87171', '#DC2626')); // Red gradient
             } else {
-                colors.push('#6c757d'); // Gray for others
+                colors.push(createGradient(ctx, '#9CA3AF', '#4B5563')); // Gray gradient
             }
         });
         return colors;
     }
 
     function initializeCharts() {
-        // Initialize Sentiment Chart
+        // Enhanced Sentiment Chart
         const sentimentCtx = document.getElementById('sentimentChart').getContext('2d');
         const sentimentData = {};
         {{ sentiment_distribution_keys | tojson }}.forEach((key, index) => {
@@ -285,56 +292,81 @@
         });
 
         sentimentChart = new Chart(sentimentCtx, {
-            type: 'pie',
+            type: 'doughnut',
             data: {
                 labels: Object.keys(sentimentData),
                 datasets: [{
                     data: Object.values(sentimentData),
-                    backgroundColor: getChartColors(sentimentData),
-                    borderWidth: 1
+                    backgroundColor: getChartColors(sentimentCtx, sentimentData),
+                    borderWidth: 2,
+                    borderColor: '#ffffff',
+                    hoverBorderWidth: 4,
+                    hoverBorderColor: '#ffffff',
+                    hoverOffset: 10
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                cutout: '60%',
                 plugins: {
                     legend: {
                         position: 'bottom',
                         labels: {
-                            color: '#333',
+                            padding: 20,
                             font: {
-                                size: 12
-                            }
+                                size: 13,
+                                family: "'Inter', sans-serif",
+                                weight: '500'
+                            },
+                            usePointStyle: true,
+                            pointStyle: 'circle'
                         }
                     },
                     tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleFont: {
+                            size: 14,
+                            weight: '600'
+                        },
+                        bodyFont: {
+                            size: 13
+                        },
                         callbacks: {
                             label: function(context) {
-                                let label = context.label || '';
-                                if (label) {
-                                    label += ': ';
-                                }
-                                label += context.parsed + ' reviews';
-                                return label;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((context.parsed / total) * 100).toFixed(1);
+                                return `${context.label}: ${context.parsed} (${percentage}%)`;
                             }
                         }
                     }
+                },
+                animation: {
+                    animateScale: true,
+                    animateRotate: true,
+                    duration: 2000,
+                    easing: 'easeInOutQuart'
                 }
             }
         });
 
-        // Initialize Rating Chart
+        // Enhanced Rating Chart
         const ratingCtx = document.getElementById('ratingChart').getContext('2d');
+        const gradient = createGradient(ratingCtx, '#60A5FA', '#2563EB');
+
         ratingChart = new Chart(ratingCtx, {
             type: 'bar',
             data: {
                 labels: {{ rating_distribution_keys | tojson }},
                 datasets: [{
-                    label: 'Number of Reviews',
+                    label: 'Reviews',
                     data: {{ rating_distribution_values | tojson }},
-                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                    borderColor: 'rgba(54, 162, 235, 1)',
-                    borderWidth: 1
+                    backgroundColor: gradient,
+                    borderRadius: 8,
+                    borderSkipped: false,
+                    barPercentage: 0.7,
+                    categoryPercentage: 0.8
                 }]
             },
             options: {
@@ -343,8 +375,30 @@
                 scales: {
                     y: {
                         beginAtZero: true,
+                        grid: {
+                            drawBorder: false,
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        },
                         ticks: {
-                            precision: 0
+                            precision: 0,
+                            font: {
+                                family: "'Inter', sans-serif",
+                                size: 12
+                            },
+                            callback: function(value) {
+                                return value + ' reviews';
+                            }
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            font: {
+                                family: "'Inter', sans-serif",
+                                size: 12
+                            }
                         }
                     }
                 },
@@ -353,12 +407,31 @@
                         display: false
                     },
                     tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleFont: {
+                            size: 14,
+                            weight: '600'
+                        },
+                        bodyFont: {
+                            size: 13
+                        },
                         callbacks: {
                             label: function(context) {
-                                return `${context.parsed.y} reviews`;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((context.parsed.y / total) * 100).toFixed(1);
+                                return `${context.parsed.y} reviews (${percentage}%)`;
                             }
                         }
                     }
+                },
+                animation: {
+                    duration: 2000,
+                    easing: 'easeInOutQuart'
+                },
+                interaction: {
+                    mode: 'index',
+                    intersect: false
                 }
             }
         });
@@ -367,6 +440,7 @@
     function updateCharts(response) {
         // Update Sentiment Chart
         if (sentimentChart && response.sentiment_data) {
+            const sentimentCtx = document.getElementById('sentimentChart').getContext('2d');
             const sortedLabels = Object.keys(response.sentiment_data).sort((a, b) => {
                 if (a.toLowerCase() === 'positive') return -1;
                 if (b.toLowerCase() === 'positive') return 1;
@@ -377,33 +451,67 @@
             
             sentimentChart.data.labels = sortedLabels;
             sentimentChart.data.datasets[0].data = sortedData;
-            sentimentChart.data.datasets[0].backgroundColor = getChartColors(
+            sentimentChart.data.datasets[0].backgroundColor = getChartColors(sentimentCtx, 
                 Object.fromEntries(sortedLabels.map((label, i) => [label, sortedData[i]]))
             );
+            
+            // Add fade-in animation
+            sentimentChart.options.animation = {
+                animateScale: true,
+                animateRotate: true,
+                duration: 1000,
+                easing: 'easeInOutQuart'
+            };
+            
             sentimentChart.update();
         }
 
         // Update Rating Chart
         if (ratingChart && response.rating_data) {
+            const ratingCtx = document.getElementById('ratingChart').getContext('2d');
+            const gradient = createGradient(ratingCtx, '#60A5FA', '#2563EB');
+            
             const ratingLabels = Object.keys(response.rating_data);
             const ratingValues = Object.values(response.rating_data);
             
             ratingChart.data.labels = ratingLabels;
             ratingChart.data.datasets[0].data = ratingValues;
+            ratingChart.data.datasets[0].backgroundColor = gradient;
+            
+            // Add slide-in animation
+            ratingChart.options.animation = {
+                duration: 1000,
+                easing: 'easeInOutQuart'
+            };
+            
             ratingChart.update();
         }
 
-        // Update Sentiment Counts
+        // Update Sentiment Counts with animation
         if (response.sentiment_data) {
             const sentimentDistribution = response.sentiment_data;
-            const positive = sentimentDistribution['Positive'] || 0;
-            const negative = sentimentDistribution['Negative'] || 0;
-            const neutral = sentimentDistribution['Neutral'] || 0;
-    
-            $('#positive-total').text(positive);
-            $('#negative-total').text(negative);
-            $('#neutral-total').text(neutral);
+            animateValue('positive-total', sentimentDistribution['Positive'] || 0);
+            animateValue('negative-total', sentimentDistribution['Negative'] || 0);
+            animateValue('neutral-total', sentimentDistribution['Neutral'] || 0);
         }
+    }
+
+    // Animate counter function
+    function animateValue(elementId, end) {
+        const obj = document.getElementById(elementId);
+        const start = parseInt(obj.innerHTML) || 0;
+        const duration = 1000;
+        const step = timestamp => {
+            if (!start) return;
+            const progress = Math.min((timestamp - startTime) / duration, 1);
+            const value = Math.floor(progress * (end - start) + start);
+            obj.innerHTML = value;
+            if (progress < 1) {
+                window.requestAnimationFrame(step);
+            }
+        };
+        const startTime = performance.now();
+        window.requestAnimationFrame(step);
     }
 
     function reloadData(page = 1) {
@@ -411,6 +519,8 @@
         const startDate = $('#start-date').val();
         const endDate = $('#end-date').val();
         
+        // Add loading state
+        $('.card').addClass('is-loading');
         
         $.ajax({
             url: '{{ url_for("dashboard") }}',
@@ -425,16 +535,76 @@
                 'X-Requested-With': 'XMLHttpRequest'
             },
             success: function(response) {
+                // Remove loading state
+                $('.card').removeClass('is-loading');
+                
+                // Update the DOM with new data
                 $("#review-body").html(response.reviews_html);
                 $("#pagination-container").html(response.pagination_html);
+                
+                // Update charts with smooth animations
                 updateCharts(response);
+                
+                // Scroll to top of review table smoothly
+                $('html, body').animate({
+                    scrollTop: $("#review-body").offset().top - 100
+                }, 500);
             },
             error: function(xhr, status, error) {
+                // Remove loading state
+                $('.card').removeClass('is-loading');
                 console.error("Error loading data:", error);
-                alert("Failed to load data. Please try again.");
+                
+                // Show error message with fade
+                const errorDiv = $('<div>')
+                    .addClass('alert alert-danger')
+                    .text("Failed to load data. Please try again.")
+                    .hide()
+                    .insertBefore('#review-body')
+                    .fadeIn();
+                
+                setTimeout(() => errorDiv.fadeOut(() => errorDiv.remove()), 3000);
             }
         });
     }
+
+    // Add CSS for loading state
+    $('<style>')
+        .text(`
+            .card.is-loading {
+                position: relative;
+                overflow: hidden;
+            }
+            .card.is-loading::after {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(255, 255, 255, 0.7);
+                z-index: 1;
+            }
+            .card.is-loading::before {
+                content: "";
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 30px;
+                height: 30px;
+                border: 3px solid #f3f3f3;
+                border-top: 3px solid #3498db;
+                border-radius: 50%;
+                z-index: 2;
+                animation: spin 1s linear infinite;
+                transform: translate(-50%, -50%);
+            }
+            @keyframes spin {
+                0% { transform: translate(-50%, -50%) rotate(0deg); }
+                100% { transform: translate(-50%, -50%) rotate(360deg); }
+            }
+        `)
+        .appendTo('head');
 
     // Initialize charts on page load
     initializeCharts();
@@ -448,13 +618,27 @@
         reloadData(1);
     });
 
-    // Pagination handler
+    // Enhanced pagination handler with smooth transitions
     $(document).on("click", ".page-link", function(e) {
         e.preventDefault();
         const page = $(this).data("page");
         if (page && !$(this).parent().hasClass('disabled')) {
+            // Add active state to clicked page
+            $('.page-item').removeClass('active');
+            $(this).parent().addClass('active');
+            
             reloadData(page);
         }
+    });
+
+    // Add responsive handling
+    let resizeTimeout;
+    $(window).resize(function() {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(function() {
+            if (sentimentChart) sentimentChart.resize();
+            if (ratingChart) ratingChart.resize();
+        }, 250);
     });
 });
 </script>

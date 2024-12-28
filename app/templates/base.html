@@ -1,15 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hotel Sentiment Analysis</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/css/tabler.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.22.0/tabler-icons.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>  <!-- Add Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
+
 <body class="theme-light">
     <div class="page">
+        {% if 'login' not in request.path %}
         <!-- Navbar -->
         <header class="navbar navbar-expand-md navbar-dark d-print-none">
             <div class="container-xl">
@@ -72,34 +76,33 @@
                                     <li><a class="dropdown-item" href="{{ url_for('evaluate', model='naive_bayes') }}">Klasifikasi NB</a></li>
                                 </ul>
                             </li>
-                            
-                            
+
                             {% if current_user.role == 'admin' %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{{ url_for('manage_hotels') }}">
-                                        <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                            <i class="ti ti-building"></i>
-                                        </span>
-                                        <span class="nav-link-title">Manage Hotels</span>
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{{ url_for('manage_hotel_accounts') }}">
-                                        <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                            <i class="ti ti-users"></i>
-                                        </span>
-                                        <span class="nav-link-title">Manage Hotel Accounts</span>
-                                    </a>
-                                </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('manage_hotels') }}">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <i class="ti ti-building"></i>
+                                    </span>
+                                    <span class="nav-link-title">Manage Hotels</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('manage_hotel_accounts') }}">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <i class="ti ti-users"></i>
+                                    </span>
+                                    <span class="nav-link-title">Manage Hotel Accounts</span>
+                                </a>
+                            </li>
                             {% elif current_user.role == 'unit_hotel' %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{{ url_for('upload') }}">
-                                        <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                            <i class="ti ti-upload"></i>
-                                        </span>
-                                        <span class="nav-link-title">Upload Data</span>
-                                    </a>
-                                </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('upload') }}">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <i class="ti ti-upload"></i>
+                                    </span>
+                                    <span class="nav-link-title">Upload Data</span>
+                                </a>
+                            </li>
                             {% endif %}
                         </ul>
                     </div>
@@ -107,17 +110,18 @@
             </div>
         </div>
         {% endif %}
+        {% endif %} <!-- Tutup pengecekan navbar -->
 
         <div class="page-wrapper">
             <div class="container-xl">
                 {% with messages = get_flashed_messages() %}
                     {% if messages %}
-                        {% for message in messages %}
-                        <div class="alert alert-info alert-dismissible" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
-                        {% endfor %}
+                    {% for message in messages %}
+                    <div class="alert alert-info alert-dismissible" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endfor %}
                     {% endif %}
                 {% endwith %}
                 
@@ -129,4 +133,5 @@
     <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/js/tabler.min.js"></script>
     {% block scripts %}{% endblock %}
 </body>
+
 </html>
