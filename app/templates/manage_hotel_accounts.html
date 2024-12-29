@@ -1,30 +1,300 @@
 {% extends "base.html" %}
+
 {% block content %}
-<div class="container">
-    <h2>Kelola Akun Hotel Unit</h2>
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Username</th>
-                <th>Hotel Unit</th>  <!-- Nama hotel -->
-                <th>Aksi</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for account in hotel_accounts %}
-            <tr>
-                <td>{{ account[1] }}</td>  <!-- Username -->
-                <td>{{ account[2] }}</td>  <!-- Hotel Unit (nama hotel) -->
-                <td>
-                    <a href="{{ url_for('edit_hotel_unit', user_id=account[0]) }}" class="btn btn-warning">Edit</a>
-                    <form action="{{ url_for('delete_hotel_unit', user_id=account[0]) }}" method="POST" style="display:inline;">
-                        <button type="submit" class="btn btn-danger">Hapus</button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    <a href="{{ url_for('add_hotel_unit') }}" class="btn btn-primary">Tambah Akun Hotel Unit</a>
+<style>
+    /* Card Styling */
+    .card {
+        border: none;
+        border-radius: 5px;
+        background: linear-gradient(to right, #ffffff, #f7f8fa);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+    }
+
+    .card-header {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .card-header h2 {
+        margin: 0;
+        font-size: 1.6rem;
+    }
+
+    /* Table Styling */
+    .table {
+        margin: 0;
+        border-collapse: collapse;
+    }
+
+    .table th {
+        text-align: left;
+        background-color: #343a40;
+        color: white;
+        border: none;
+        padding: 10px;
+    }
+
+    .table td {
+        padding: 10px;
+        vertical-align: middle;
+    }
+
+    .table tbody tr:nth-child(odd) {
+        background-color: #f8f9fa;
+    }
+
+    .table tbody tr:nth-child(even) {
+        background-color: #ffffff;
+    }
+
+    .table tbody tr:hover {
+        background-color: #eef5ff;
+    }
+
+    /* Button Styling */
+    .btn {
+        border-radius: 50px;
+        padding: 5px 15px;
+        transition: all 0.3s ease-in-out;
+    }
+
+    .btn-warning {
+        background-color: #ffca2c;
+        color: white;
+        border: none;
+    }
+
+    .btn-warning:hover {
+        background-color: #e0a800;
+        transform: scale(1.05);
+    }
+
+    .btn-danger {
+        background-color: #dc3545;
+        color: white;
+        border: none;
+    }
+
+    .btn-danger:hover {
+        background-color: #bd2130;
+        transform: scale(1.05);
+    }
+
+    .btn-primary {
+        background-color: #007bff;
+        color: white;
+        border: none;
+    }
+
+    .btn-primary:hover {
+        background-color: #0056b3;
+        transform: scale(1.05);
+    }
+
+    /* Empty State */
+    .no-results {
+        padding: 50px;
+        font-size: 1.2rem;
+        color: #6c757d;
+        text-align: center;
+    }
+</style>
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">Manage Hotels Accounts</h2>
+            </div>
+        </div>
+    </div>
 </div>
+<div class="container-xl my-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h3 class="card-title">Kelola Accounts Hotel Unit</h3>
+        </div>
+        <div class="card-body">
+            <div class="d-flex justify-content-end mb-3">
+                <!-- Button to trigger add modal -->
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addHotelUnitModal">
+                    <i class="ti ti-plus"></i> Tambah Accounts Unit Hotel 
+                </button>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Hotel Unit</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for account in hotel_accounts %}
+                        <tr>
+                            <td>{{ account[1] }}</td>  <!-- Username -->
+                            <td>{{ account[2] }}</td>  <!-- Hotel Unit -->
+                            <td>
+                                <!-- Button to trigger edit modal -->
+                            
+                                <a href="#" 
+                                   class="btn btn-warning btn-sm" 
+                                   data-bs-toggle="modal" 
+                                   data-bs-target="#editHotelUnitModal" 
+                                   data-account-id="{{ account[0] }}" 
+                                   data-account-username="{{ account[1] }}" 
+                                   data-account-hotel="{{ account[2] }}">
+                                    <i class="ti ti-pencil"></i> Edit
+                                </a>
+                                
+                                <!-- Delete button with confirmation -->
+                                <a href="#" 
+                                   class="btn btn-danger btn-sm" 
+                                   data-bs-toggle="modal" 
+                                   data-bs-target="#deleteHotelUnitModal" 
+                                   data-account-id="{{ account[0] }}" 
+                                   data-account-username="{{ account[1] }}">
+                                    <i class="ti ti-trash"></i> Hapus
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center">Tidak ada akun hotel unit yang tersedia.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for adding hotel unit -->
+<div class="modal fade" id="addHotelUnitModal" tabindex="-1" aria-labelledby="addHotelUnitModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addHotelUnitModalLabel">Tambah Akun Unit Hotel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="{{ url_for('add_hotel_unit') }}">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="hotel_unit" class="form-label">Hotel Unit</label>
+                        <select class="form-select" id="hotel_unit" name="hotel_unit" required>
+                            <option value="">Pilih Hotel Unit</option>
+                            {% for hotel in hotels %}
+                                <option value="{{ hotel.id }}">{{ hotel.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">Tambah Akun</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Modal for editing hotel unit -->
+<div class="modal fade" id="editHotelUnitModal" tabindex="-1" aria-labelledby="editHotelUnitModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editHotelUnitModalLabel">Edit Akun Hotel Unit</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" id="editHotelUnitForm" action="#">
+                    <div class="mb-3">
+                        <label for="edit_username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="edit_username" name="username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="edit_password" name="password">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_hotel_unit" class="form-label">Hotel Unit</label>
+                        <input type="text" class="form-control" id="edit_hotel_unit" name="hotel_unit" required>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">Perbarui Akun</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for deleting hotel unit -->
+<div class="modal fade" id="deleteHotelUnitModal" tabindex="-1" aria-labelledby="deleteHotelUnitModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteHotelUnitModalLabel">Hapus Akun Hotel Unit</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Apakah Anda yakin ingin menghapus akun hotel unit <strong id="deleteHotelUnitUsername"></strong>?</p>
+            </div>
+            <div class="modal-footer">
+                <form method="POST" id="deleteHotelUnitForm" action="#">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-danger">Hapus</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Populate edit modal with hotel account data
+    const editHotelUnitModal = document.getElementById('editHotelUnitModal');
+    editHotelUnitModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const accountId = button.getAttribute('data-account-id');
+        const accountUsername = button.getAttribute('data-account-username');
+        const accountHotel = button.getAttribute('data-account-hotel');
+
+        // Populate the modal with account data
+        document.getElementById('edit_username').value = accountUsername;
+        document.getElementById('edit_hotel_unit').value = accountHotel;
+
+        // Set form action for editing
+        const modalForm = editHotelUnitModal.querySelector('form');
+        modalForm.action = '/edit_hotel_unit/' + accountId;
+    });
+
+    // Populate delete modal with account data
+    const deleteHotelUnitModal = document.getElementById('deleteHotelUnitModal');
+    deleteHotelUnitModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const accountId = button.getAttribute('data-account-id');
+        const accountUsername = button.getAttribute('data-account-username');
+
+        // Set the username for confirmation
+        document.getElementById('deleteHotelUnitUsername').innerText = accountUsername;
+
+        // Set form action for deleting
+        const modalForm = deleteHotelUnitModal.querySelector('form');
+        modalForm.action = '/delete_hotel_unit/' + accountId;
+    });
+</script>
+
 {% endblock %}

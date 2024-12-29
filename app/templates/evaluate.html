@@ -1,6 +1,54 @@
 {% extends "base.html" %}
 
 {% block content %}
+<style>
+    /* Gaya Umum untuk Kartu */
+    .card {
+        border-radius: 0.5rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Gaya untuk Header Kartu */
+    .card-header {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    /* Gaya untuk Isi Kartu */
+    .card-body {
+        padding: 1rem 1.5rem;
+    }
+
+    /* Gaya untuk Tabel */
+    .table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .table th, .table td {
+        padding: 0.5rem 1rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    /* Gaya untuk Tabel Bergaris */
+    .table-striped tbody tr:nth-of-type(odd) {
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+
+    /* Gaya untuk Teks Berwarna */
+    .text-success {
+        color: #28a745;
+    }
+
+    .text-danger {
+        color: #dc3545;
+    }
+
+    /* Gaya untuk Bayangan Kartu */
+    .shadow-sm {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+    }
+</style>
 <div class="page-header d-print-none">
     <div class="container-xl">
         <div class="row g-2 align-items-center">
@@ -10,17 +58,18 @@
         </div>
     </div>
 </div>
+<br>
 
 <!-- Check which model is selected -->
 {% if model == 'svm' %}
     <!-- SVM Results -->
-    <div class="card mb-4">
-        <div class="card-header">
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-primary text-white">
             <h3 class="card-title">Support Vector Machine (SVM)</h3>
         </div>
         <div class="card-body">
             {% if svm_results %}
-                <p><strong>Akurasi:</strong> {{ svm_results.accuracy }}</p>
+                <p><strong>Akurasi:</strong> <span class="text-success">{{ svm_results.accuracy }}</span></p>
                 
                 {% if svm_results.confusion_matrix %}
                     <h4>Confusion Matrix - SVM</h4>
@@ -30,8 +79,8 @@
 
                 {% if svm_report %}
                     <h4>Classification Report - SVM</h4>
-                    <table class="table table-bordered">
-                        <thead>
+                    <table class="table table-bordered table-striped">
+                        <thead class="table-light">
                             <tr>
                                 <th>Class</th>
                                 <th>Precision</th>
@@ -51,7 +100,7 @@
                             <tr>
                                 <td>Positive</td>
                                 <td>{{ svm_report['Positive']['precision']| round(2)}}</td>
-                                <td>{{ svm_report['Positive']['recall']| round(2) }}</td>
+                                <td>{{ svm_report['Positive']['recall'] | round(2) }}</td>
                                 <td>{{ svm_report['Positive']['f1-score']| round(2) }}</td>
                                 <td>{{ svm_report['Positive']['support'] | round(2)}}</td>
                             </tr>
@@ -59,19 +108,19 @@
                     </table>
                 {% endif %}
             {% else %}
-                <p>No SVM results available.</p>
+                <p class="text-danger">No SVM results available.</p>
             {% endif %}
         </div>
     </div>
 {% elif model == 'naive_bayes' %}
     <!-- Naive Bayes Results -->
-    <div class="card mb-4">
-        <div class="card-header">
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-primary text-white">
             <h3 class="card-title">Naive Bayes</h3>
         </div>
         <div class="card-body">
             {% if nb_results %}
-                <p><strong>Akurasi:</strong> {{ nb_results.accuracy }}</p>
+                <p><strong>Akurasi:</strong> <span class="text-success">{{ nb_results.accuracy }}</span></p>
                 
                 {% if nb_results.confusion_matrix %}
                     <h4>Confusion Matrix - Naive Bayes</h4>
@@ -81,8 +130,8 @@
 
                 {% if nb_report %}
                     <h4>Classification Report - Naive Bayes</h4>
-                    <table class="table table-bordered">
-                        <thead>
+                    <table class="table table-bordered table-striped">
+                        <thead class="table-light">
                             <tr>
                                 <th>Class</th>
                                 <th>Precision</th>
@@ -110,12 +159,12 @@
                     </table>
                 {% endif %}
             {% else %}
-                <p>No Naive Bayes results available.</p>
+                <p class="text-danger">No Naive Bayes results available.</p>
             {% endif %}
         </div>
     </div>
 {% else %}
-    <p>No model selected or invalid model.</p>
+    <p class="text-danger">No model selected or invalid model.</p>
 {% endif %}
 
 {% endblock %}

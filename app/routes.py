@@ -59,8 +59,6 @@ def init_routes(app):
 
         return render_template('auth/register.html')
 
-
-
     @app.route('/logout')
     @login_required
     def logout():
@@ -70,6 +68,8 @@ def init_routes(app):
     @app.route('/')
     @login_required
     def dashboard():
+         # Inisialisasi SentimentAnalyzer
+        analyzer = SentimentAnalyzer.get_instance()
         page = request.args.get('page', default=1, type=int)
         per_page = 10
         start_date = request.args.get('start_date')
@@ -165,8 +165,7 @@ def init_routes(app):
 
         total_pages = (total_reviews + per_page - 1) // per_page
         
-       # Inisialisasi SentimentAnalyzer
-        analyzer = SentimentAnalyzer()  # Pastikan path file kamus benar
+      
 
         # Pisahkan ulasan berdasarkan sentimen
         positive_reviews = []

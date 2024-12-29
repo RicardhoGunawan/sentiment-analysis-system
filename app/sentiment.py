@@ -25,6 +25,8 @@ from sklearn.metrics import classification_report, accuracy_score, confusion_mat
 from collections import Counter
 from googletrans import Translator
 from textblob import TextBlob
+import threading
+
 
 
 # Konfigurasi logging
@@ -35,42 +37,45 @@ logging.basicConfig(level=logging.INFO,
 nltk.download('punkt', quiet=True)
 nltk.download('stopwords', quiet=True)
 
-class SentimentAnalyzer:
-    def __init__(self,  #positive_words_path='app/static/dictionary_words/positive_words.txt', 
-                 # negative_words_path='app/static/dictionary_words/negative_words.txt',
-                 normalization_file_path='app/static/dictionary_words/normalization.txt'):
-        # Gunakan stemmer dari Sastrawi
-        factory = StemmerFactory()
-        self.stemmer = factory.create_stemmer()
-        
-        # Gunakan stopwords dari Sastrawi
-        stopword_factory = StopWordRemoverFactory()
-        self.stop_words = set(stopword_factory.get_stop_words())
+class SingletonMeta(type):
+    _instances = {}
+    _lock = threading.Lock()
 
-        self.vectorizer = TfidfVectorizer()  # Ubah ke TfidfVectorizer
-        self.svm_classifier = SVC(kernel='linear')  # Gantilah Naive Bayes dengan SVC
-        self.nb_classifier = MultinomialNB()
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            with cls._lock:
+                if cls not in cls._instances:
+                    cls._instances[cls] = super().__call__(*args, **kwargs)
+        return cls._instances[cls]
 
+class SentimentAnalyzer(metaclass=SingletonMeta):
+    # Inisialisasi _instance sebagai class variable
+    _instance = None
+    _lock = threading.Lock()
+    def __init__(self, normalization_file_path='app/static/dictionary_words/normalization.txt'):
+        if not hasattr(self, '_initialized'):
+            # Initialize stemmer
+            factory = StemmerFactory()
+            self.stemmer = factory.create_stemmer()
+            
+            # Initialize stopwords
+            stopword_factory = StopWordRemoverFactory()
+            self.stop_words = set(stopword_factory.get_stop_words())
 
-        # Path ke file kamus kata positif dan negatif
-        # self.positive_words_path = positive_words_path
-        # self.negative_words_path = negative_words_path
-        self.normalization_file_path = normalization_file_path
+            # Initialize classifiers and vectorizer
+            self.vectorizer = TfidfVectorizer()
+            self.svm_classifier = SVC(kernel='linear')
+            self.nb_classifier = MultinomialNB()
 
-        # Memuat kata-kata positif dan negatif
-        # self.positive_words = self.load_words_from_file(positive_words_path)
-        # self.negative_words = self.load_words_from_file(negative_words_path)
-
-        # Memuat kamus normalisasi
-        self.normalization_dict = self.load_normalization_dict(normalization_file_path)
-        
-        self.translator = Translator()
-
-        # Logging informasi
-        # logging.info(f"Positive words loaded: {len(self.positive_words)}")
-        # logging.info(f"Negative words loaded: {len(self.negative_words)}")
-        # logging.info(f"Normalization dictionary loaded: {len(self.normalization_dict)}")
-        logging.info("Initialized Translator")
+            # Load normalization dictionary
+            self.normalization_dict = self._load_normalization_dict(normalization_file_path)
+            
+            # Initialize translator
+            self.translator = Translator()
+            
+            # Mark as initialized
+            self._initialized = True
+            logging.info("SentimentAnalyzer initialized successfully")
 
 
     # def load_words_from_file(self, file_path):
@@ -84,25 +89,31 @@ class SentimentAnalyzer:
     #         logging.error(f"File {file_path} tidak ditemukan.")
     #         return set()  #  Kembalikan set kosong jika file tidak ditemukan
 
-    def load_normalization_dict(self, file_path):
-        """Memuat kamus normalisasi dari file teks ke dalam dictionary."""
+    def _load_normalization_dict(self, file_path):
+        """Load normalization dictionary with caching."""
+        if hasattr(self, 'normalization_dict'):
+            return self.normalization_dict
+            
         normalization_dict = {}
         try:
-            logging.info(f"Loading normalization dictionary from {file_path}")
             with open(file_path, 'r', encoding='utf-8') as file:
                 for line in file:
                     line = line.strip()
-                    # Mengabaikan baris kosong atau yang tidak sesuai format
-                    if not line or '\t' not in line:
-                        continue
-                    parts = line.split('\t')  # Gunakan tab sebagai pemisah
-                    if len(parts) == 2:
-                        normalization_dict[parts[0].strip()] = parts[1].strip()
+                    if line and '\t' in line:
+                        parts = line.split('\t')
+                        if len(parts) == 2:
+                            normalization_dict[parts[0].strip()] = parts[1].strip()
             logging.info(f"Normalization dictionary loaded: {len(normalization_dict)}")
         except FileNotFoundError:
             logging.error(f"File {file_path} tidak ditemukan.")
         return normalization_dict
-
+    
+    @classmethod
+    def get_instance(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+    
     def preprocess_text(self, text):
         """Preprocesses input text dengan penanganan NaN."""
         # Pastikan input adalah string

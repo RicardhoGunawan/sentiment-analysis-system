@@ -1,18 +1,45 @@
 {% for review in reviews %}
-<tr>
-    <td style="width: 40px;">
-        <input type="checkbox" class="review-checkbox" data-review-id="{{ review[0] }}">
+<tr class="review-row" data-review-id="{{ review[0] }}">
+    <td style="width: 30px; text-align: center;">
+        <input type="checkbox" class="review-checkbox" 
+               data-review-id="{{ review[0] }}">
     </td>
     <td>{{ review[1] }}</td>
     <td>{{ review[2] }}</td>
-    <td>{{ review[3] }}</td>
+    <td>
+        <div class="rating-container">
+            <span class="rating-stars me-2">
+                {% for i in range(1, review[3]|int + 1) %}
+                    <i class="ti ti-star-filled text-warning"></i>
+                {% endfor %}
+                {% for i in range(review[3]|int + 1, 6) %}
+                    <i class="ti ti-star text-muted"></i>
+                {% endfor %}
+            </span>
+            <span class="badge bg-secondary-subtle text-secondary">
+                {{ review[3] }}/5
+            </span>
+        </div>
+    </td>
     <td>{{ review[4] }}</td>
-    <td>{{ review[5] }}</td>
+    <td class="truncate-text">{{ review[5] }}</td>
     <td>
         {% if review[6] %}
-        <span class="badge bg-{{ 'success' if review[6] == 'positive' else 'danger' }}">
-            {{ review[6] }}
-        </span>
+            {% if review[6].lower() == 'positive' %}
+            <span class="badge sentiment-badge sentiment-positive">
+                {{ review[6] }}
+            </span>
+            {% elif review[6].lower() == 'negative' %}
+            <span class="badge sentiment-badge sentiment-negative">
+                {{ review[6] }}
+            </span>
+            {% elif review[6].lower() == 'neutral' %}
+            <span class="badge sentiment-badge sentiment-neutral">
+                {{ review[6] }}
+            </span>
+            {% else %}
+            <span class="badge bg-secondary">{{ review[6] }}</span>
+            {% endif %}
         {% else %}
         <span class="badge bg-secondary">Unlabeled</span>
         {% endif %}

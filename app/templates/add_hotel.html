@@ -1,15 +1,121 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container">
-    <h2>Tambah Hotel</h2>
-    <form method="POST">
-        <div class="form-group">
-            <label for="name">Nama Hotel:</label>
-            <input type="text" class="form-control" name="name" required>
-        </div>
-        <button type="submit" class="btn btn-primary">Tambah Hotel</button>
-    </form>
-    <a href="{{ url_for('manage_hotels') }}" class="btn btn-secondary">Kembali</a>
+<style>
+    /* Form Container Styling */
+    .form-container {
+        background: #ffffff;
+        border-radius: 15px;
+        padding: 30px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        max-width: 600px;
+        margin: auto;
+        border: 2px solid #f0f0f0;
+    }
+
+    .form-container h2 {
+        text-align: center;
+        margin-bottom: 30px;
+        color: #007bff;
+        font-size: 2rem;
+        font-weight: bold;
+    }
+
+    /* Input Styling */
+    .form-group label {
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 8px;
+    }
+
+    .form-control {
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        padding: 12px;
+        transition: border-color 0.3s ease-in-out;
+    }
+
+    .form-control:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 6px rgba(0, 123, 255, 0.4);
+    }
+
+    /* Button Styling */
+    .btn {
+        border-radius: 50px;
+        padding: 12px 20px;
+        font-weight: 600;
+        transition: transform 0.3s ease-in-out;
+    }
+
+    .btn-primary {
+        background-color: #007bff;
+        color: white;
+        border: none;
+    }
+
+    .btn-primary:hover {
+        background-color: #0056b3;
+        transform: scale(1.05);
+    }
+
+    .btn-secondary {
+        background-color: #6c757d;
+        color: white;
+        border: none;
+    }
+
+    .btn-secondary:hover {
+        background-color: #5a6268;
+        transform: scale(1.05);
+    }
+
+    /* Back Button Styling */
+    .back-link {
+        text-align: center;
+        margin-top: 25px;
+    }
+
+    .back-link a {
+        color: #007bff;
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .back-link a:hover {
+        color: #0056b3;
+        text-decoration: underline;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .form-container {
+            padding: 20px;
+        }
+
+        .form-container h2 {
+            font-size: 1.6rem;
+        }
+    }
+</style>
+
+<div class="container my-5">
+    <div class="form-container">
+        <h2>Tambah Hotel</h2>
+        <form method="POST">
+            <div class="form-group mb-4">
+                <label for="name">Nama Hotel:</label>
+                <input type="text" class="form-control" name="name" id="name" placeholder="Masukkan nama hotel" required>
+            </div>
+            <div class="d-flex justify-content-between">
+                <a href="{{ url_for('manage_hotels') }}" class="btn btn-secondary">
+                    <i class="ti ti-arrow-left"></i> Kembali
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="ti ti-plus"></i> Tambah Hotel
+                </button>
+            </div>
+        </form>
+    </div>
 </div>
 {% endblock %}
