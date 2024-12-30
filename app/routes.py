@@ -291,74 +291,118 @@ def init_routes(app):
     @app.route('/add_hotel_unit', methods=['GET', 'POST'])
     @login_required
     def add_hotel_unit():
+        # Cek apakah pengguna adalah admin
         if current_user.role != 'admin':
-            flash('Anda tidak memiliki izin untuk menambahkan hotel unit.')
+            flash('Anda tidak memiliki izin untuk menambahkan hotel unit.', 'danger')
             return redirect(url_for('dashboard'))
 
         if request.method == 'POST':
-            username = request.form['username']
-            password = request.form['password']
-            hotel_unit = request.form['hotel_unit']
+            username = request.form.get('username')
+            password = request.form.get('password')
+            hotel_unit = request.form.get('hotel_unit')
 
+            # Validasi input
+            if not username or not password or not hotel_unit:
+                flash('Semua kolom harus diisi.', 'warning')
+                return redirect(url_for('add_hotel_unit'))
+
+            # Validasi ID hotel
+            hotel = Hotel.get_by_id(hotel_unit)
+            if not hotel:
+                flash('Hotel unit tidak valid.', 'danger')
+                return redirect(url_for('add_hotel_unit'))
+
+            # Simpan akun unit hotel
             if User.create(username, password, 'unit_hotel', hotel_unit):
-                flash('Akun hotel unit berhasil ditambahkan.')
-                return redirect(url_for('dashboard'))
+                flash(f'Akun hotel unit untuk {hotel["name"]} berhasil ditambahkan.', 'success')
+                return redirect(url_for('manage_hotel_accounts'))
 
-            flash('Terjadi kesalahan saat pendaftaran. Silakan coba lagi.')
+            flash('Terjadi kesalahan saat pendaftaran. Silakan coba lagi.', 'danger')
 
-        return render_template('add_hotel_unit.html')
+        # Ambil daftar hotel untuk dropdown di form
+        hotels = Hotel.get_all_hotels()
+        return render_template('add_hotel_unit.html', hotels=hotels)
+
     
     
     @app.route('/manage_hotel_accounts', methods=['GET'])
     @login_required
     def manage_hotel_accounts():
         if current_user.role != 'admin':
-            flash('Anda tidak memiliki izin untuk mengelola akun hotel unit.')
+            flash('Anda tidak memiliki izin untuk mengelola akun hotel unit.', 'danger')
             return redirect(url_for('dashboard'))
+
+        with mysql.connection.cursor() as cur:
+            cur.execute(
+                '''SELECT u.id, u.username, h.id AS hotel_id, h.name AS hotel_name 
+                FROM users u 
+                JOIN hotels h ON u.hotel_unit = h.id 
+                WHERE u.role = %s''', 
+                ('unit_hotel',)
+            )
+            hotel_accounts = cur.fetchall()
+
+        # Ambil semua data hotel untuk dropdown
+        hotels = Hotel.get_all_hotels()
         
-        # Mendapatkan semua akun hotel unit dari database
-        cur = mysql.connection.cursor()
-        cur.execute('SELECT id, username, hotel_unit FROM users WHERE role = %s', ('unit_hotel',))
-        hotel_accounts = cur.fetchall()  # Ini akan mengembalikan list of tuples
-        cur.close()
-        return render_template('manage_hotel_accounts.html', hotel_accounts=hotel_accounts)
+        return render_template('manage_hotel_accounts.html', 
+                            hotel_accounts=hotel_accounts, 
+                            hotels=hotels)
+
 
     @app.route('/edit_hotel_unit/<int:user_id>', methods=['GET', 'POST'])
     @login_required
     def edit_hotel_unit(user_id):
         if current_user.role != 'admin':
-            flash('Anda tidak memiliki izin untuk mengedit akun hotel unit.')
+            flash('Anda tidak memiliki izin untuk mengedit akun hotel unit.', 'danger')
             return redirect(url_for('dashboard'))
 
         cur = mysql.connection.cursor()
 
         if request.method == 'POST':
             username = request.form['username']
-            password = request.form['password']  # Ganti password jika ada
+            password = request.form['password']
+            hotel_unit = request.form['hotel_unit']
 
-            # Update username dan password jika tidak kosong
-            if username:
-                cur.execute('UPDATE users SET username = %s WHERE id = %s', (username, user_id))
+            try:
+                # Update username
+                if username:
+                    cur.execute('UPDATE users SET username = %s WHERE id = %s', (username, user_id))
+                
+                # Update password if provided
+                if password:
+                    hashed_password = generate_password_hash(password)
+                    cur.execute('UPDATE users SET password = %s WHERE id = %s', (hashed_password, user_id))
+                
+                # Update hotel unit
+                if hotel_unit:
+                    cur.execute('UPDATE users SET hotel_unit = %s WHERE id = %s', (hotel_unit, user_id))
+
+                mysql.connection.commit()
+                flash('Akun hotel unit berhasil diperbarui.', 'success')
+            except Exception as e:
+                mysql.connection.rollback()
+                flash('Terjadi kesalahan saat memperbarui akun.', 'danger')
+            finally:
+                cur.close()
             
-            if password:
-                hashed_password = generate_password_hash(password)
-                cur.execute('UPDATE users SET password = %s WHERE id = %s', (hashed_password, user_id))
-
-            mysql.connection.commit()
-            cur.close()
-            flash('Akun hotel unit berhasil diperbarui.')
             return redirect(url_for('manage_hotel_accounts'))
 
-        # Mengambil data pengguna untuk ditampilkan di form
-        cur.execute('SELECT id, username FROM users WHERE id = %s', (user_id,))
+        # GET request - fetch user data
+        cur.execute('''
+            SELECT u.id, u.username, u.hotel_unit, h.name 
+            FROM users u 
+            JOIN hotels h ON u.hotel_unit = h.id 
+            WHERE u.id = %s
+        ''', (user_id,))
         user = cur.fetchone()
         cur.close()
 
         if not user:
-            flash('Akun tidak ditemukan.')
+            flash('Akun tidak ditemukan.', 'danger')
             return redirect(url_for('manage_hotel_accounts'))
 
-        return render_template('edit_hotel_unit.html', user=user)
+        return render_template('edit_hotel_unit.html', user=user, hotels=Hotel.get_all_hotels())
     
     
     @app.route('/delete_hotel_unit/<int:user_id>', methods=['POST'])
@@ -535,18 +579,19 @@ def init_routes(app):
     def reviews():
         page = request.args.get('page', default=1, type=int)
         hotel_id = request.args.get('hotel_id', type=int)
+        sentiment = request.args.get('sentiment')
         per_page = 10
         
         if current_user.role != 'admin':
             # Non-admin users can only see their own hotel's reviews
-            reviews, total_reviews = Review.get_hotel_reviews_paginated(current_user.hotel_unit, page)
+            reviews, total_reviews = Review.get_hotel_reviews_paginated(current_user.hotel_unit, page, sentiment=sentiment)
         else:
             if hotel_id:
                 # If hotel_id is provided, filter reviews by that hotel
-                reviews, total_reviews = Review.get_paginated_reviews_by_hotel(hotel_id, page)
+                reviews, total_reviews = Review.get_paginated_reviews_by_hotel(hotel_id, page, sentiment=sentiment)
             else:
                 # Show all reviews for admin
-                reviews, total_reviews = Review.get_paginated_reviews(page)
+                reviews, total_reviews = Review.get_paginated_reviews(page, sentiment=sentiment)
         
         total_pages = (total_reviews + per_page - 1) // per_page
 

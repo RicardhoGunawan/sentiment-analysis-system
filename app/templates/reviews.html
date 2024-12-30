@@ -35,16 +35,47 @@
 
     /* Gaya untuk Checkbox */
     .review-checkbox-col {
-        width: 30px;
+        width: 40px; /* Lebar yang sedikit lebih besar */
         text-align: center;
+    }
+
+    .review-checkbox {
+        appearance: none; /* Menghilangkan gaya default */
+        width: 20px; /* Ukuran checkbox */
+        height: 20px; /* Ukuran checkbox */
+        border: 2px solid #007bff; /* Warna border */
+        border-radius: 4px; /* Sudut melengkung */
+        outline: none; /* Menghilangkan outline */
+        cursor: pointer; /* Menunjukkan bahwa ini dapat diklik */
+        transition: background-color 0.3s, border-color 0.3s; /* Transisi halus */
+    }
+
+    .review-checkbox:checked {
+        background-color: #007bff; /* Warna latar belakang saat dicentang */
+        border-color: #0056b3; /* Warna border saat dicentang */
+    }
+
+    .review-checkbox:checked::after {
+        content: ''; /* Menambahkan tanda centang */
+        display: block;
+        width: 10px;
+        height: 10px;
+        background-color: white; /* Warna tanda centang */
+        border-radius: 2px; /* Sudut melengkung untuk tanda centang */
+        position: relative;
+        top: 2px; /* Posisi tanda centang */
+        left: 2px; /* Posisi tanda centang */
     }
 
     /* Gaya untuk Truncate Text */
     .truncate-text {
-        max-width: 200px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        max-width: 250px; /* Lebar maksimum yang lebih besar */
+        white-space: normal; /* Tidak membungkus teks */
+        overflow: hidden; /* Menghilangkan teks yang melampaui */
+        text-overflow: ellipsis; /* Menampilkan elipsis (...) */
+        transition: color 0.3s; /* Transisi halus untuk perubahan warna */
+        color: #333; /* Warna teks default */
+        font-weight: 500; /* Berat font yang lebih tebal */
     }
 
     /* Gaya untuk Rating */
@@ -130,6 +161,122 @@
         background-color: #c82333;
         color: white;
     }
+    .custom-dropdown {
+        position: relative;
+        width: 250px;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .filter-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+
+    .filter-icon {
+        position: absolute;
+        left: 15px;
+        color: #3498db;
+        font-size: 14px;
+        z-index: 1;
+        transition: all 0.3s ease;
+    }
+
+    .custom-dropdown select {
+        width: 100%;
+        padding: 12px 40px 12px 40px; /* Adjusted left padding for icon */
+        font-size: 15px;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        appearance: none;
+        -webkit-appearance: none;
+        background: white;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        color: #555;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .custom-dropdown::after {
+        content: '\f107'; /* Font Awesome angle down icon */
+        font-family: 'Font Awesome 6 Free';
+        font-weight: 900;
+        position: absolute;
+        right: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #3498db;
+        pointer-events: none;
+        transition: all 0.3s ease;
+    }
+
+    .custom-dropdown select:hover,
+    .custom-dropdown select:focus {
+        border-color: #3498db;
+        box-shadow: 0 2px 8px rgba(52, 152, 219, 0.15);
+        outline: none;
+    }
+
+    .custom-dropdown:hover::after,
+    .custom-dropdown:hover .filter-icon {
+        color: #2980b9;
+    }
+
+    .custom-dropdown select option {
+        padding: 12px;
+        background-color: white;
+        color: #555;
+    }
+
+    .custom-dropdown select option:hover {
+        background-color: #f8f9fa;
+    }
+
+    /* Smooth transition for options */
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-5px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .custom-dropdown select option {
+        animation: fadeIn 0.2s ease-in-out;
+    }
+
+    /* Custom styles for sentiment options */
+    .custom-dropdown select option[value="positive"] {
+        color: #27ae60;
+    }
+
+    .custom-dropdown select option[value="negative"] {
+        color: #e74c3c;
+    }
+
+    .custom-dropdown select option[value="neutral"] {
+        color: #7f8c8d;
+    }
+
+    /* Mobile responsiveness */
+    @media (max-width: 480px) {
+        .custom-dropdown {
+            width: 100%;
+        }
+        
+        .custom-dropdown select {
+            font-size: 14px;
+            padding: 10px 35px 10px 35px;
+        }
+        
+        .filter-icon {
+            font-size: 12px;
+        }
+    }
+    
 </style>
 <div class="page-header d-print-none">
     <div class="container-xl">
@@ -137,6 +284,20 @@
             <div class="col">
                 <h2 class="page-title">Reviews Sentiment</h2>
             </div>
+            <div class="col-auto">
+                <div class="custom-dropdown">
+                    <div class="filter-wrapper">
+                        <i class="fa-solid fa-filter filter-icon"></i>
+                        <select id="sentiment-select" class="form-select">
+                            <option value="">All Sentiments</option>
+                            <option value="positive">Positive</option>
+                            <option value="negative">Negative</option>
+                            <option value="neutral">Neutral</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
             <div class="col-auto ms-auto">
                 <button id="delete-selected-btn" class="btn btn-danger d-none" disabled>
                     <i class="ti ti-trash me-1"></i>Delete Selected Reviews
@@ -242,7 +403,6 @@
             </div>
         </div>
     </div>
-</ div>
 
 {% endblock %}
 
@@ -252,13 +412,15 @@
 <script>
     function reloadData(page = 1) {
         const hotelId = $("#hotel-select").val() || '';
+        const sentiment = $("#sentiment-select").val() || '';
         
         $.ajax({
             url: '{{ url_for("reviews") }}',
             type: 'GET',
             data: { 
                 page: page,
-                hotel_id: hotelId 
+                hotel_id: hotelId,
+                sentiment: sentiment
             },
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
             dataType: 'json',
@@ -277,6 +439,21 @@
             }
         });
     }
+    document.getElementById('sentiment-select').addEventListener('change', function() {
+        this.blur(); // Remove focus after selection
+        
+        // Subtle scale animation on change
+        const wrapper = this.closest('.filter-wrapper');
+        wrapper.style.transform = 'scale(1.02)';
+        setTimeout(() => {
+            wrapper.style.transform = 'scale(1)';
+        }, 150);
+    });
+    
+    // Add event listener for sentiment select
+    $("#sentiment-select").change(function() {
+        reloadData(1);
+    });
 
     $("#hotel-select").change(function() {
         reloadData(1);

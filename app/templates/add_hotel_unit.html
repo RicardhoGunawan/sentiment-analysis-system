@@ -3,21 +3,22 @@
 {% block content %}
 <div class="container">
     <h2>Tambah Akun Hotel Unit</h2>
-    <form method="POST">
-        <div class="mb-3">
-            <label for="username" class="form-label">Username</label>
-            <input type="text" class="form-control" id="username" name="username" required>
-        </div>
-        <div class="mb-3">
-            <label for="password" class="form-label">Password</label>
-            <input type="password" class="form-control" id="password" name="password" required>
-        </div>
-        <div class="mb-3">
-            <label for="hotel_unit" class="form-label">Hotel Unit</label>
-            <input type="text" class="form-control" id="hotel_unit" name="hotel_unit" required>
-        </div>
-        <button type="submit" class="btn btn-primary">Tambah Akun</button>
-        <a href="{{ url_for('manage_hotel_accounts') }}" class="btn btn-secondary">Kembali</a>
+    <form method="POST" action="{{ url_for('add_hotel_unit') }}">
+        <label for="username">Username</label>
+        <input type="text" name="username" id="username" required>
+    
+        <label for="password">Password</label>
+        <input type="password" name="password" id="password" required>
+    
+        <label for="hotel_unit">Hotel Unit</label>
+        <select name="hotel_unit" id="hotel_unit" required>
+            <option value="" disabled selected>Pilih hotel unit</option>
+            {% for hotel in hotels %}
+            <option value="{{ hotel['id'] }}">{{ hotel['name'] }}</option>
+            {% endfor %}
+        </select>
+    
+        <button type="submit">Tambah</button>
     </form>
 </div>
 {% endblock %}

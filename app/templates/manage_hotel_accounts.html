@@ -127,7 +127,6 @@
                     <thead>
                         <tr>
                             <th>Username</th>
-                            <th>Hotel Unit</th>
                             <th>Aksi</th>
                         </tr>
                     </thead>
@@ -135,27 +134,26 @@
                         {% for account in hotel_accounts %}
                         <tr>
                             <td>{{ account[1] }}</td>  <!-- Username -->
-                            <td>{{ account[2] }}</td>  <!-- Hotel Unit -->
                             <td>
                                 <!-- Button to trigger edit modal -->
                             
                                 <a href="#" 
-                                   class="btn btn-warning btn-sm" 
-                                   data-bs-toggle="modal" 
-                                   data-bs-target="#editHotelUnitModal" 
-                                   data-account-id="{{ account[0] }}" 
-                                   data-account-username="{{ account[1] }}" 
-                                   data-account-hotel="{{ account[2] }}">
+                                    class="btn btn-warning btn-sm" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#editHotelUnitModal" 
+                                    data-account-id="{{ account[0] }}" 
+                                    data-account-username="{{ account[1] }}" 
+                                    data-account-hotel-id="{{ account[2] }}">
                                     <i class="ti ti-pencil"></i> Edit
                                 </a>
                                 
                                 <!-- Delete button with confirmation -->
                                 <a href="#" 
-                                   class="btn btn-danger btn-sm" 
-                                   data-bs-toggle="modal" 
-                                   data-bs-target="#deleteHotelUnitModal" 
-                                   data-account-id="{{ account[0] }}" 
-                                   data-account-username="{{ account[1] }}">
+                                    class="btn btn-danger btn-sm" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#deleteHotelUnitModal" 
+                                    data-account-id="{{ account[0] }}" 
+                                    data-account-username="{{ account[1] }}">
                                     <i class="ti ti-trash"></i> Hapus
                                 </a>
                             </td>
@@ -227,10 +225,16 @@
                     <div class="mb-3">
                         <label for="edit_password" class="form-label">Password</label>
                         <input type="password" class="form-control" id="edit_password" name="password">
+                        <small class="form-text text-muted">Biarkan kosong jika tidak ingin mengubah password</small>
                     </div>
                     <div class="mb-3">
                         <label for="edit_hotel_unit" class="form-label">Hotel Unit</label>
-                        <input type="text" class="form-control" id="edit_hotel_unit" name="hotel_unit" required>
+                        <select class="form-select" id="edit_hotel_unit" name="hotel_unit" required>
+                            <option value="">Pilih Hotel Unit</option>
+                            {% for hotel in hotels %}
+                                <option value="{{ hotel.id }}">{{ hotel.name }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                     <div class="d-flex justify-content-between">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
@@ -270,15 +274,24 @@
         const button = event.relatedTarget;
         const accountId = button.getAttribute('data-account-id');
         const accountUsername = button.getAttribute('data-account-username');
-        const accountHotel = button.getAttribute('data-account-hotel');
+        const accountHotelId = button.getAttribute('data-account-hotel-id');
 
         // Populate the modal with account data
-        document.getElementById('edit_username').value = accountUsername;
-        document.getElementById('edit_hotel_unit').value = accountHotel;
-
-        // Set form action for editing
         const modalForm = editHotelUnitModal.querySelector('form');
-        modalForm.action = '/edit_hotel_unit/' + accountId;
+        const usernameInput = modalForm.querySelector('#edit_username');
+        const hotelUnitSelect = modalForm.querySelector('#edit_hotel_unit');
+        
+        // Set username
+        usernameInput.value = accountUsername;
+        
+        // Set hotel unit dropdown
+        hotelUnitSelect.value = accountHotelId;
+        
+        // Clear password field
+        modalForm.querySelector('#edit_password').value = '';
+
+        // Set form action
+        modalForm.action = `/edit_hotel_unit/${accountId}`;
     });
 
     // Populate delete modal with account data

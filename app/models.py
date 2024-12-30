@@ -174,45 +174,55 @@ class Review:
                 return False
             
     @staticmethod
-    def get_paginated_reviews(page, per_page=10):
+    def get_paginated_reviews(page, per_page=10, sentiment=None):
         offset = (page - 1) * per_page
         cursor = mysql.connection.cursor()
         
-        # Updated query to match your table schema
-        cursor.execute("""
+        query = """
             SELECT 
                 r.id, 
                 h.name AS hotel_name, 
                 r.guest_name, 
                 r.rating, 
-                r.review_date,  # Correct column name
+                r.review_date,
                 r.review_text, 
-                r.sentiment_label  # Correct sentiment column name
+                r.sentiment_label
             FROM 
                 reviews r
             JOIN 
-                hotels h ON r.hotel_unit = h.id  # Correct join condition
-            ORDER BY 
-                r.review_date DESC
-            LIMIT %s OFFSET %s
-        """, (per_page, offset))
+                hotels h ON r.hotel_unit = h.id
+        """
         
+        params = []
+        if sentiment:
+            query += " WHERE r.sentiment_label = %s"
+            params.append(sentiment)
+        
+        query += " ORDER BY r.review_date DESC LIMIT %s OFFSET %s"
+        params.extend([per_page, offset])
+        
+        cursor.execute(query, tuple(params))
         reviews = cursor.fetchall()
         
-        # Count total reviews
-        cursor.execute("SELECT COUNT(*) FROM reviews")
-        total_reviews = cursor.fetchone()[0]
+        # Count total reviews with sentiment filter
+        count_query = "SELECT COUNT(*) FROM reviews r"
+        if sentiment:
+            count_query += " WHERE r.sentiment_label = %s"
+            cursor.execute(count_query, (sentiment,))
+        else:
+            cursor.execute(count_query)
         
+        total_reviews = cursor.fetchone()[0]
         cursor.close()
         return reviews, total_reviews
-
+    
     @staticmethod
-    def get_hotel_reviews_paginated(hotel_unit, page, per_page=10):
+    def get_hotel_reviews_paginated(hotel_unit, page, per_page=10, sentiment=None):
         offset = (page - 1) * per_page
         cursor = mysql.connection.cursor()
         
-        # Query untuk mendapatkan reviews spesifik untuk hotel unit
-        cursor.execute("""
+        # Base query
+        query = """
             SELECT 
                 r.id, 
                 h.name AS hotel_name, 
@@ -227,50 +237,76 @@ class Review:
                 hotels h ON r.hotel_unit = h.id
             WHERE 
                 r.hotel_unit = %s
-            ORDER BY 
-                r.review_date DESC
-            LIMIT %s OFFSET %s
-        """, (hotel_unit, per_page, offset))
+        """
         
+        params = [hotel_unit]
+        
+        # Add sentiment filter if provided
+        if sentiment:
+            query += " AND r.sentiment_label = %s"
+            params.append(sentiment)
+        
+        # Add ordering and pagination
+        query += " ORDER BY r.review_date DESC LIMIT %s OFFSET %s"
+        params.extend([per_page, offset])
+        
+        cursor.execute(query, tuple(params))
         reviews = cursor.fetchall()
         
-        # Hitung total reviews untuk hotel unit ini
-        cursor.execute("SELECT COUNT(*) FROM reviews WHERE hotel_unit = %s", (hotel_unit,))
+        # Count query with sentiment filter
+        count_query = "SELECT COUNT(*) FROM reviews WHERE hotel_unit = %s"
+        count_params = [hotel_unit]
+        
+        if sentiment:
+            count_query += " AND sentiment_label = %s"
+            count_params.append(sentiment)
+        
+        cursor.execute(count_query, tuple(count_params))
         total_reviews = cursor.fetchone()[0]
         
         cursor.close()
         return reviews, total_reviews
     
     @staticmethod
-    def get_paginated_reviews_by_hotel(hotel_id, page, per_page=10):
+    def get_paginated_reviews_by_hotel(hotel_id, page, per_page=10, sentiment=None):
         offset = (page - 1) * per_page
         cursor = mysql.connection.cursor()
         
-        # Query to get reviews for a specific hotel
-        cursor.execute("""
+        query = """
             SELECT 
                 r.id, 
                 h.name AS hotel_name, 
                 r.guest_name, 
                 r.rating, 
-                r.review_date,  
+                r.review_date,
                 r.review_text, 
-                r.sentiment_label  
+                r.sentiment_label
             FROM 
                 reviews r
             JOIN 
                 hotels h ON r.hotel_unit = h.id
-            WHERE 
-                r.hotel_unit = %s
-            ORDER BY 
-                r.review_date DESC
-            LIMIT %s OFFSET %s
-        """, (hotel_id, per_page, offset))
+            WHERE r.hotel_unit = %s
+        """
         
+        params = [hotel_id]
+        if sentiment:
+            query += " AND r.sentiment_label = %s"
+            params.append(sentiment)
+        
+        query += " ORDER BY r.review_date DESC LIMIT %s OFFSET %s"
+        params.extend([per_page, offset])
+        
+        cursor.execute(query, tuple(params))
         reviews = cursor.fetchall()
         
-        # Count total reviews for this hotel
-        cursor.execute("SELECT COUNT(*) FROM reviews WHERE hotel_unit = %s", (hotel_id,))
+        # Count total reviews with filters
+        count_query = "SELECT COUNT(*) FROM reviews WHERE hotel_unit = %s"
+        count_params = [hotel_id]
+        if sentiment:
+            count_query += " AND sentiment_label = %s"
+            count_params.append(sentiment)
+        
+        cursor.execute(count_query, tuple(count_params))
         total_reviews = cursor.fetchone()[0]
         
         cursor.close()
@@ -295,7 +331,7 @@ class Review:
             # Konversi ke dictionary dengan key 'Positive', 'Negative', 'Neutral'
             sentiment_dict = {}
             for sentiment, count in result:
-                sentiment_dict[sentiment.capitalize()] = count
+                sentiment_dict[sentiment.lower()] = count
             
             return sentiment_dict
 
@@ -313,7 +349,7 @@ class Review:
 
             result = cur.fetchall()
 
-            return dict(result) if result else {"positive": 0, "negative": 0, "neutral": 0}
+            return dict(result) if result else {"Positive": 0, "Negative": 0, "Neutral": 0}
 
 
 

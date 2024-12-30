@@ -479,12 +479,17 @@
           data: {
               labels: Object.keys(sentimentData),
               datasets: [{
-                  data: Object.values(sentimentData),
-                  backgroundColor: [
-                      'rgba(46, 204, 113, 0.8)',  // Positive
-                      'rgba(231, 76, 60, 0.8)',   // Negative
-                      'rgba(149, 165, 166, 0.8)'  // Neutral
-                  ],
+                data: Object.values(sentimentData),
+                backgroundColor: Object.keys(sentimentData).map(label => {
+                    switch(label.toLowerCase()) {
+                        case 'positive':
+                            return 'rgba(46, 204, 113, 0.8)';
+                        case 'negative':
+                            return 'rgba(231, 76, 60, 0.8)';
+                        default: // neutral
+                            return 'rgba(149, 165, 166, 0.8)';
+                    }
+                }),
                   borderWidth: 2,
                   borderColor: '#ffffff'
               }]
@@ -628,6 +633,7 @@
         // Update Sentiment Counts with animation
         if (response.sentiment_data) {
             const sentimentDistribution = response.sentiment_data;
+            // Metode animateValue memiliki masalah karena startTime tidak didefinisikan dengan benar
             animateValue('positive-total', sentimentDistribution['Positive'] || 0);
             animateValue('negative-total', sentimentDistribution['Negative'] || 0);
             animateValue('neutral-total', sentimentDistribution['Neutral'] || 0);
@@ -635,21 +641,26 @@
     }
 
     // Animate counter function
-    function animateValue(elementId, end) {
-        const obj = document.getElementById(elementId);
-        const start = parseInt(obj.innerHTML) || 0;
+    function animateValue(elementId, endValue) {
+        const element = document.getElementById(elementId);
+        const startValue = parseInt(element.textContent) || 0;
         const duration = 1000;
-        const step = timestamp => {
-            if (!start) return;
-            const progress = Math.min((timestamp - startTime) / duration, 1);
-            const value = Math.floor(progress * (end - start) + start);
-            obj.innerHTML = value;
-            if (progress < 1) {
-                window.requestAnimationFrame(step);
-            }
-        };
         const startTime = performance.now();
-        window.requestAnimationFrame(step);
+        
+        function update() {
+            const currentTime = performance.now();
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+    
+            const currentValue = Math.floor(startValue + (endValue - startValue) * progress);
+            element.textContent = currentValue;
+    
+            if (progress < 1) {
+                requestAnimationFrame(update);
+            }
+        }
+    
+        requestAnimationFrame(update);
     }
 
     function reloadData(page = 1) {
@@ -673,35 +684,39 @@
                 'X-Requested-With': 'XMLHttpRequest'
             },
             success: function(response) {
-                // Remove loading state
+                console.log('Response:', response); // Debugging
                 $('.card').removeClass('is-loading');
                 
-                // Update the DOM with new data
+                if (response.sentiment_data) {
+                    console.log('Sentiment Data:', response.sentiment_data); // Debugging
+                    updateCharts(response);
+                } else {
+                    console.error('No sentiment data in response');
+                }
+                
                 $("#review-body").html(response.reviews_html);
                 $("#pagination-container").html(response.pagination_html);
                 
-                // Update charts with smooth animations
-                updateCharts(response);
-                
-                // Scroll to top of review table smoothly
                 $('html, body').animate({
                     scrollTop: $("#review-body").offset().top - 100
                 }, 500);
             },
             error: function(xhr, status, error) {
-                // Remove loading state
                 $('.card').removeClass('is-loading');
-                console.error("Error loading data:", error);
+                console.error("AJAX Error:", {
+                    status: status,
+                    error: error,
+                    response: xhr.responseText
+                });
                 
-                // Show error message with fade
-                const errorDiv = $('<div>')
+                const errorMessage = $('<div>')
                     .addClass('alert alert-danger')
                     .text("Failed to load data. Please try again.")
                     .hide()
                     .insertBefore('#review-body')
                     .fadeIn();
                 
-                setTimeout(() => errorDiv.fadeOut(() => errorDiv.remove()), 3000);
+                setTimeout(() => errorMessage.fadeOut(() => errorMessage.remove()), 3000);
             }
         });
     }
