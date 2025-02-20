@@ -48,6 +48,30 @@
     .shadow-sm {
         box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
     }
+    /* Tambahkan gaya khusus untuk tabel classification report */
+    .classification-report {
+        font-family: monospace;
+        white-space: pre;
+        border: none;
+        background-color: white;
+    }
+
+    .classification-report th,
+    .classification-report td {
+        padding: 0.25rem 1rem;
+        border: none;
+        text-align: right;
+    }
+
+    .classification-report th:first-child,
+    .classification-report td:first-child {
+        text-align: left;
+    }
+
+    .metric-row {
+        border-top: 1px solid #dee2e6;
+        font-weight: bold;
+    }
 </style>
 <div class="page-header d-print-none">
     <div class="container-xl">
@@ -69,7 +93,6 @@
         </div>
         <div class="card-body">
             {% if svm_results %}
-                <p><strong>Akurasi:</strong> <span class="text-success">{{ svm_results.accuracy }}</span></p>
                 
                 {% if svm_results.confusion_matrix %}
                     <h4>Confusion Matrix - SVM</h4>
@@ -79,30 +102,60 @@
 
                 {% if svm_report %}
                     <h4>Classification Report - SVM</h4>
-                    <table class="table table-bordered table-striped">
-                        <thead class="table-light">
+                    <p class="mb-0"><strong>Accuracy Score:</strong> {{ svm_results.accuracy }}</p>
+                    <p><strong>Report:</strong></p>
+                    <table class="classification-report">
+                        <thead>
                             <tr>
-                                <th>Class</th>
-                                <th>Precision</th>
-                                <th>Recall</th>
-                                <th>F1-Score</th>
-                                <th>Support</th>
+                                <th></th>
+                                <th>precision</th>
+                                <th>recall</th>
+                                <th>f1-score</th>
+                                <th>support</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <td>Negative</td>
-                                <td>{{ svm_report['Negative']['precision']| round(2) }}</td>
-                                <td>{{ svm_report['Negative']['recall'] | round(2)}}</td>
-                                <td>{{ svm_report['Negative']['f1-score']| round(2) }}</td>
-                                <td>{{ svm_report['Negative']['support']| round(2) }}</td>
+                                <td>{{ "%.2f"|format(svm_report['Negative']['precision']) }}</td>
+                                <td>{{ "%.2f"|format(svm_report['Negative']['recall']) }}</td>
+                                <td>{{ "%.2f"|format(svm_report['Negative']['f1-score']) }}</td>
+                                <td>{{ svm_report['Negative']['support']|int }}</td>
                             </tr>
                             <tr>
                                 <td>Positive</td>
-                                <td>{{ svm_report['Positive']['precision']| round(2)}}</td>
-                                <td>{{ svm_report['Positive']['recall'] | round(2) }}</td>
-                                <td>{{ svm_report['Positive']['f1-score']| round(2) }}</td>
-                                <td>{{ svm_report['Positive']['support'] | round(2)}}</td>
+                                <td>{{ "%.2f"|format(svm_report['Positive']['precision']) }}</td>
+                                <td>{{ "%.2f"|format(svm_report['Positive']['recall']) }}</td>
+                                <td>{{ "%.2f"|format(svm_report['Positive']['f1-score']) }}</td>
+                                <td>{{ svm_report['Positive']['support']|int }}</td>
+                            </tr>
+                            <tr>
+                                <td>Neutral</td>
+                                <td>{{ "%.2f"|format(svm_report['Neutral']['precision']) }}</td>
+                                <td>{{ "%.2f"|format(svm_report['Neutral']['recall']) }}</td>
+                                <td>{{ "%.2f"|format(svm_report['Neutral']['f1-score']) }}</td>
+                                <td>{{ svm_report['Neutral']['support']|int }}</td>
+                            </tr>
+                            <tr class="metric-row">
+                                <td>accuracy</td>
+                                <td></td>
+                                <td></td>
+                                <td>{{ "%.2f"|format(svm_report['accuracy']) }}</td>
+                                <td>{{ svm_report['macro avg']['support']|int }}</td>
+                            </tr>
+                            <tr>
+                                <td>macro avg</td>
+                                <td>{{ "%.2f"|format(svm_report['macro avg']['precision']) }}</td>
+                                <td>{{ "%.2f"|format(svm_report['macro avg']['recall']) }}</td>
+                                <td>{{ "%.2f"|format(svm_report['macro avg']['f1-score']) }}</td>
+                                <td>{{ svm_report['macro avg']['support']|int }}</td>
+                            </tr>
+                            <tr>
+                                <td>weighted avg</td>
+                                <td>{{ "%.2f"|format(svm_report['weighted avg']['precision']) }}</td>
+                                <td>{{ "%.2f"|format(svm_report['weighted avg']['recall']) }}</td>
+                                <td>{{ "%.2f"|format(svm_report['weighted avg']['f1-score']) }}</td>
+                                <td>{{ svm_report['weighted avg']['support']|int }}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -119,9 +172,7 @@
             <h3 class="card-title">Naive Bayes</h3>
         </div>
         <div class="card-body">
-            {% if nb_results %}
-                <p><strong>Akurasi:</strong> <span class="text-success">{{ nb_results.accuracy }}</span></p>
-                
+            {% if nb_results %}                
                 {% if nb_results.confusion_matrix %}
                     <h4>Confusion Matrix - Naive Bayes</h4>
                     <img src="{{ url_for('static', filename='uploads/' + nb_results.confusion_matrix.split('/')[-1]) }}" 
@@ -130,30 +181,60 @@
 
                 {% if nb_report %}
                     <h4>Classification Report - Naive Bayes</h4>
-                    <table class="table table-bordered table-striped">
-                        <thead class="table-light">
+                    <p class="mb-0"><strong>Accuracy Score:</strong> {{ nb_results.accuracy }}</p>
+                    <p><strong>Report:</strong></p>
+                    <table class="classification-report">
+                        <thead>
                             <tr>
-                                <th>Class</th>
-                                <th>Precision</th>
-                                <th>Recall</th>
-                                <th>F1-Score</th>
-                                <th>Support</th>
+                                <th></th>
+                                <th>precision</th>
+                                <th>recall</th>
+                                <th>f1-score</th>
+                                <th>support</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <td>Negative</td>
-                                <td>{{ nb_report['Negative']['precision']| round(2) }}</td>
-                                <td>{{ nb_report['Negative']['recall'] | round(2)}}</td>
-                                <td>{{ nb_report['Negative']['f1-score']| round(2) }}</td>
-                                <td>{{ nb_report['Negative']['support']| round(2) }}</td>
+                                <td>{{ "%.2f"|format(nb_report['Negative']['precision']) }}</td>
+                                <td>{{ "%.2f"|format(nb_report['Negative']['recall']) }}</td>
+                                <td>{{ "%.2f"|format(nb_report['Negative']['f1-score']) }}</td>
+                                <td>{{ nb_report['Negative']['support']|int }}</td>
                             </tr>
                             <tr>
                                 <td>Positive</td>
-                                <td>{{ nb_report['Positive']['precision'] | round(2)}}</td>
-                                <td>{{ nb_report['Positive']['recall']| round(2) }}</td>
-                                <td>{{ nb_report['Positive']['f1-score'] | round(2)}}</td>
-                                <td>{{ nb_report['Positive']['support']| round(2) }}</td>
+                                <td>{{ "%.2f"|format(nb_report['Positive']['precision']) }}</td>
+                                <td>{{ "%.2f"|format(nb_report['Positive']['recall']) }}</td>
+                                <td>{{ "%.2f"|format(nb_report['Positive']['f1-score']) }}</td>
+                                <td>{{ nb_report['Positive']['support']|int }}</td>
+                            </tr>
+                            <tr>
+                                <td>Neutral</td>
+                                <td>{{ "%.2f"|format(nb_report['Neutral']['precision']) }}</td>
+                                <td>{{ "%.2f"|format(nb_report['Neutral']['recall']) }}</td>
+                                <td>{{ "%.2f"|format(nb_report['Neutral']['f1-score']) }}</td>
+                                <td>{{ nb_report['Neutral']['support']|int }}</td>
+                            </tr>
+                            <tr class="metric-row">
+                                <td>accuracy</td>
+                                <td></td>
+                                <td></td>
+                                <td>{{ "%.2f"|format(nb_report['accuracy']) }}</td>
+                                <td>{{ nb_report['macro avg']['support']|int }}</td>
+                            </tr>
+                            <tr>
+                                <td>macro avg</td>
+                                <td>{{ "%.2f"|format(nb_report['macro avg']['precision']) }}</td>
+                                <td>{{ "%.2f"|format(nb_report['macro avg']['recall']) }}</td>
+                                <td>{{ "%.2f"|format(nb_report['macro avg']['f1-score']) }}</td>
+                                <td>{{ nb_report['macro avg']['support']|int }}</td>
+                            </tr>
+                            <tr>
+                                <td>weighted avg</td>
+                                <td>{{ "%.2f"|format(nb_report['weighted avg']['precision']) }}</td>
+                                <td>{{ "%.2f"|format(nb_report['weighted avg']['recall']) }}</td>
+                                <td>{{ "%.2f"|format(nb_report['weighted avg']['f1-score']) }}</td>
+                                <td>{{ nb_report['weighted avg']['support']|int }}</td>
                             </tr>
                         </tbody>
                     </table>
